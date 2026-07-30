@@ -75,10 +75,24 @@ Shows the static HomeKit structure: zones, rooms, accessories, and services.
 Unnamed HomeKit rooms are labeled with their internal room id rather than being
 merged into a generic unassigned bucket.
 
+Use this tab to understand the physical and logical layout of the HomeKit home
+before reading automations. It shows which accessories belong to each room, how
+rooms are grouped into HomeKit zones, and which named services are exposed by
+each accessory. This is useful when a single physical device exposes several
+services, such as a camera with a microphone, speaker, motion sensor, or
+security system service.
+
 ### Hubs & Bridges
 
 Shows Home hubs and bridge relationships found in HomeKit. Bridge mappings are
 derived from HomeKit's `ZHOSTACCESSORY` relationship.
+
+The Home hubs section shows Apple resident devices known to HomeKit, including
+reachability and the inferred primary hub when the local database exposes that
+relationship. The bridges section groups bridged accessories under the bridge
+that contributes them to HomeKit, which helps explain where accessories from
+Homebridge, Home Assistant bridges, Hue, Aqara, or similar integrations enter
+the HomeKit graph.
 
 ### Context Sources
 
@@ -93,6 +107,19 @@ Homebridge `config.json` and can identify:
 Context sources add traceable metadata. Raw HomeKit events, conditions, and
 actions remain visible as extracted.
 
+This tab is not a replacement for HomeKit data. It explains local helper
+accessories when an external configuration file can be connected to what
+HomeKit exposes. For example, a Homebridge security helper switch can be shown
+as a security mode button while the underlying HomeKit trigger still remains
+visible as a switch or security-system service.
+
+### Manufacturers
+
+Shows accessories grouped by manufacturer, using the manufacturer and model
+values exposed in HomeKit. This is useful for auditing device families,
+spotting bridge-imported accessories, and understanding whether a group of
+automations depends heavily on a single vendor or integration.
+
 ### Automations
 
 Shows each automation as:
@@ -106,10 +133,33 @@ Shows each automation as:
 The list is sorted alphabetically and can be filtered by status, theme, room,
 and confidence.
 
+This is the main rule-inspection tab. It is designed for automations created in
+Apple's Home app and for richer HomeKit rules authored in apps such as Eve.
+HomeKit Inspector reads the stored HomeKit rule objects and decodes HomeKit/Eve
+predicate archives where possible, so conditions that are incomplete or hard to
+review in Home.app can still appear in the `IF` section.
+
+`WHEN` shows the event side of the rule: time triggers, significant-time
+events, characteristic changes, button events, contact sensors, motion sensors,
+presence events, or other HomeKit trigger objects. `IF` shows conditions decoded
+from the evaluation predicate. `THEN` shows characteristic writes and scene
+references. When an automation runs a scene, the automation tab names the scene;
+the scene's own actions are shown in the Scenes tab.
+
+Confidence labels identify decoded conditions, unresolved values, or rules that
+need visual review in Home/Eve. Unresolved values are kept visible because they
+often point to HomeKit-specific encodings, vendor-specific services, or rule
+types that need another decoder pass.
+
 ### Scenes
 
 Shows HomeKit scenes separately from automations. Automations can reference a
 scene, but scene details stay in the Scenes view to avoid duplicating actions.
+
+Use this tab to inspect what a scene actually changes. This is especially
+important when an automation's `THEN` section says only that it runs a scene:
+the automation explains when and why the scene runs, while the scene view
+explains which accessories and characteristics the scene changes.
 
 ### Theme Editor
 
@@ -118,6 +168,11 @@ Themes are user editorial metadata. They are not extracted from HomeKit.
 Assignments are stored in browser `localStorage` or loaded from
 `--theme-config`. Use export/import from the UI to move assignments between
 machines.
+
+This tab lets the user group automations into local themes such as security,
+presence simulation, lighting, access, climate, or any other taxonomy that fits
+the installation. Theme assignments are local metadata and do not alter the
+HomeKit export.
 
 ## Data Layers
 

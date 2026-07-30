@@ -133,6 +133,24 @@ Context enrichment is shown in the **Context Sources** tab and in automation
 notes. It should not replace the original `WHEN`, `IF`, or `THEN` extracted
 from HomeKit.
 
+## Automation Inspection
+
+HomeKit Inspector focuses on making automation rules readable. The
+**Automations** view presents each rule as `WHEN`, `IF`, and `THEN`, with the
+devices, rooms, scenes, confidence notes, and unresolved values shown alongside
+the rule.
+
+The extractor handles automations created in Apple's Home app and also works
+with richer HomeKit rules authored in tools such as Eve, where conditions can
+go beyond what Home.app exposes in its UI. Those conditions are decoded from
+HomeKit/Eve predicate archives where possible. Values that remain opaque are
+shown as unresolved instead of being guessed.
+
+This makes the inspector useful for mixed setups: plain Home automations, Eve
+rules with additional conditions, Homebridge helper accessories, webhook
+bridges, virtual switches, and other HomeKit-compatible integrations all remain
+visible in the same local report.
+
 ## Local Theme Assignments
 
 The inspector includes a **Theme Editor** tab. Theme assignments are editorial
@@ -180,6 +198,8 @@ enrichment whenever possible.
 
 ## Inspector Views
 
+The inspector is organized into dedicated tabs:
+
 - **Home Layout**: zones, rooms, accessories, and named services.
 - **Hubs & Bridges**: Home hubs, primary hub detection, bridges, and bridged
   accessories.
@@ -192,6 +212,9 @@ enrichment whenever possible.
 - **Theme Editor**: local assignment of automations to user-defined themes.
 
 The global search box filters the current view.
+
+See [docs/EXPLORER.md](docs/EXPLORER.md) for a detailed description of each
+tab.
 
 ## Project Structure
 
