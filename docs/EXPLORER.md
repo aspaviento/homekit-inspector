@@ -211,4 +211,5 @@ The HTML file embeds the full JSON payload. It may contain:
 - scene actions;
 - household schedules.
 
-Do not publish generated inspector files from a real home.
+Reports generated from an actual home are private artifacts and are intended
+for local review.
