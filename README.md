@@ -27,9 +27,15 @@ The project provides:
 ## Project Lineage and Development
 
 HomeKit Inspector is a standalone project focused on local, read-only HomeKit
-inspection. It was built after studying earlier public work around HomeKit data
-extraction, but the current project is centered on the macOS `homed` SQLite
-store, richer rule decoding, and a self-contained HTML inspector.
+inspection. It builds on the work published in
+[tamengual/homekit-extractor](https://github.com/tamengual/homekit-extractor),
+which explored exporting HomeKit data from Apple's local `homed` database and
+provided a broader HomeKit-to-Home-Assistant conversion pipeline.
+
+HomeKit Inspector keeps the `homed` SQLite extraction focus, but narrows the
+scope to inspection and documentation: richer rule decoding, HomeKit layout and
+infrastructure views, optional Homebridge context, local theme assignments, and
+a self-contained HTML inspector.
 
 The implementation was developed with assistance from OpenAI Codex. Codex
 helped inspect the local CoreData schema, refine read-only SQLite queries,
