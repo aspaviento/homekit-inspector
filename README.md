@@ -24,6 +24,24 @@ The project provides:
 
 ![HomeKit Inspector sample interface](assets/homekit-inspector-overview.svg)
 
+## Project Lineage and Development
+
+HomeKit Inspector is a standalone project focused on local, read-only HomeKit
+inspection. It was built after studying earlier public work around HomeKit data
+extraction, but the current project is centered on the macOS `homed` SQLite
+store, richer rule decoding, and a self-contained HTML inspector.
+
+The implementation was developed with assistance from OpenAI Codex. Codex was
+used iteratively to inspect the local CoreData schema, refine read-only SQLite
+queries, decode HomeKit/Eve predicate and action payloads, build the HTML
+viewer, create synthetic public examples, and audit the repository for private
+household data before publication.
+
+The project intentionally separates raw HomeKit extraction, technical decoding,
+optional Homebridge context, and user-maintained annotations. That separation is
+part of the design: the tool should show what can be derived from HomeKit first,
+then clearly identify any external context or local editorial metadata.
+
 ## Safety Model
 
 This project is designed for inspection and documentation. It does not modify
