@@ -67,6 +67,16 @@ See [docs/PRIVACY.md](docs/PRIVACY.md) for the publishing checklist.
 - Python 3.10+.
 - No Python package dependencies are required for extraction or HTML generation.
 
+## Platform Support
+
+HomeKit Inspector is a macOS tool. It depends on user-granted access to the
+local `homed` CoreData SQLite store at `~/Library/HomeKit/core.sqlite`.
+
+iOS and iPadOS apps can use the HomeKit entitlement to access Apple's public
+HomeKit APIs, but that entitlement does not provide filesystem access to the
+system HomeKit database. As a result, this extraction method does not apply to
+iPhone or iPad apps, even when they are signed with HomeKit capability.
+
 ## Quick Start
 
 Create a local output directory:

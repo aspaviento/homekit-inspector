@@ -45,6 +45,19 @@ sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
 
 The surrounding `-wal` and `-shm` files are never modified by this project.
 
+## Platform Boundary
+
+This approach is specific to macOS. The key capability is not iCloud sync by
+itself, but local read access to the `homed` SQLite store after the user grants
+Full Disk Access to the terminal process.
+
+iOS and iPadOS devices also participate in HomeKit and iCloud sync, but apps on
+those platforms remain sandboxed. The HomeKit entitlement enables access to
+Apple's public HomeKit APIs; it does not grant direct filesystem access to the
+system HomeKit database. An iPhone or iPad app can therefore inspect the subset
+of HomeKit data exposed by `HomeKit.framework`, but it cannot use this SQLite
+extraction method to decode the private rule graph.
+
 ## Why SQLite
 
 The public HomeKit API is useful for many apps, but it does not expose a full,
