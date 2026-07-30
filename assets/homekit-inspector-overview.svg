@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">HomeKit Inspector sample interface</title>
+  <desc id="desc">Synthetic screenshot-style illustration of the HomeKit Inspector HTML interface using example data.</desc>
+  <rect width="1440" height="900" fill="#f6f7f9"/>
+  <style>
+    .title{font:700 30px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}
+    .h2{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}
+    .h3{font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b;letter-spacing:.8px}
+    .text{font:500 15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}
+    .muted{font:400 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b}
+    .badge{font:500 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b}
+    .metricNumber{font:700 20px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}
+    .metricLabel{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b}
+  </style>
+  <text x="40" y="54" class="title">HomeKit Inspector</text>
+
+  <g transform="translate(40 86)">
+    <g>
+      <rect width="112" height="64" rx="7" fill="#fff" stroke="#d8dee8"/>
+      <text x="12" y="28" class="metricNumber">42</text>
+      <text x="12" y="50" class="metricLabel">Total</text>
+    </g>
+    <g transform="translate(124 0)">
+      <rect width="112" height="64" rx="7" fill="#fff" stroke="#d8dee8"/>
+      <text x="12" y="28" class="metricNumber">39</text>
+      <text x="12" y="50" class="metricLabel">Active</text>
+    </g>
+    <g transform="translate(248 0)">
+      <rect width="112" height="64" rx="7" fill="#fff" stroke="#d8dee8"/>
+      <text x="12" y="28" class="metricNumber">3</text>
+      <text x="12" y="50" class="metricLabel">Inactive</text>
+    </g>
+    <g transform="translate(372 0)">
+      <rect width="112" height="64" rx="7" fill="#fff" stroke="#d8dee8"/>
+      <text x="12" y="28" class="metricNumber">18</text>
+      <text x="12" y="50" class="metricLabel">With IF</text>
+    </g>
+    <g transform="translate(496 0)">
+      <rect width="112" height="64" rx="7" fill="#fff" stroke="#d8dee8"/>
+      <text x="12" y="28" class="metricNumber">4</text>
+      <text x="12" y="50" class="metricLabel">Unresolved</text>
+    </g>
+    <g transform="translate(620 0)">
+      <rect width="112" height="64" rx="7" fill="#fff" stroke="#d8dee8"/>
+      <text x="12" y="28" class="metricNumber">16</text>
+      <text x="12" y="50" class="metricLabel">Scenes</text>
+    </g>
+  </g>
+
+  <g transform="translate(40 176)">
+    <rect x="0" y="0" width="120" height="38" rx="6" fill="#dff1f7" stroke="#9bcadd"/>
+    <text x="20" y="25" class="text" fill="#0f5473">Home Layout</text>
+    <rect x="132" y="0" width="134" height="38" rx="6" fill="#fff" stroke="#d8dee8"/>
+    <text x="148" y="25" class="text">Hubs &amp; Bridges</text>
+    <rect x="278" y="0" width="146" height="38" rx="6" fill="#fff" stroke="#d8dee8"/>
+    <text x="294" y="25" class="text">Context Sources</text>
+    <rect x="436" y="0" width="128" height="38" rx="6" fill="#fff" stroke="#d8dee8"/>
+    <text x="452" y="25" class="text">Manufacturers</text>
+    <rect x="576" y="0" width="116" height="38" rx="6" fill="#fff" stroke="#d8dee8"/>
+    <text x="592" y="25" class="text">Automations</text>
+    <rect x="704" y="0" width="84" height="38" rx="6" fill="#fff" stroke="#d8dee8"/>
+    <text x="720" y="25" class="text">Scenes</text>
+    <rect x="800" y="0" width="120" height="38" rx="6" fill="#fff" stroke="#d8dee8"/>
+    <text x="816" y="25" class="text">Theme Editor</text>
+    <rect x="980" y="0" width="420" height="38" rx="6" fill="#fff" stroke="#d8dee8"/>
+    <text x="996" y="25" class="muted">Search current view</text>
+  </g>
+
+  <rect x="40" y="244" width="1360" height="596" rx="8" fill="#fff" stroke="#d8dee8"/>
+  <text x="64" y="288" class="h2">Home Layout</text>
+  <g transform="translate(64 306)">
+    <rect width="58" height="20" rx="10" fill="#fff" stroke="#d8dee8"/><text x="10" y="14" class="badge">4 zones</text>
+    <rect x="66" width="70" height="20" rx="10" fill="#fff" stroke="#d8dee8"/><text x="76" y="14" class="badge">12 rooms</text>
+    <rect x="144" width="108" height="20" rx="10" fill="#fff" stroke="#d8dee8"/><text x="154" y="14" class="badge">64 accessories</text>
+    <rect x="260" width="126" height="20" rx="10" fill="#fff" stroke="#d8dee8"/><text x="270" y="14" class="badge">210 services</text>
+  </g>
+
+  <g transform="translate(64 356)">
+    <rect width="424" height="204" rx="8" fill="#fff" stroke="#d8dee8"/>
+    <text x="18" y="30" class="h3">GROUND FLOOR</text>
+    <rect x="18" y="48" width="182" height="116" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <text x="34" y="78" class="text">Kitchen</text>
+    <circle cx="38" cy="104" r="3" fill="#1f2933"/><text x="50" y="109" class="text">Kitchen Motion</text>
+    <circle cx="38" cy="132" r="3" fill="#1f2933"/><text x="50" y="137" class="text">Table Light</text>
+    <rect x="220" y="48" width="182" height="116" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <text x="236" y="78" class="text">Living Room</text>
+    <circle cx="240" cy="104" r="3" fill="#1f2933"/><text x="252" y="109" class="text">Window Sensor</text>
+    <circle cx="240" cy="132" r="3" fill="#1f2933"/><text x="252" y="137" class="text">Floor Lamp</text>
+  </g>
+
+  <g transform="translate(508 356)">
+    <rect width="424" height="204" rx="8" fill="#fff" stroke="#d8dee8"/>
+    <text x="18" y="30" class="h3">EXTERIOR</text>
+    <rect x="18" y="48" width="182" height="116" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <text x="34" y="78" class="text">Front Gate</text>
+    <circle cx="38" cy="104" r="3" fill="#1f2933"/><text x="50" y="109" class="text">Gate Contact</text>
+    <circle cx="38" cy="132" r="3" fill="#1f2933"/><text x="50" y="137" class="text">Driveway Lights</text>
+    <rect x="220" y="48" width="182" height="116" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <text x="236" y="78" class="text">Garden</text>
+    <circle cx="240" cy="104" r="3" fill="#1f2933"/><text x="252" y="109" class="text">Weather Sensor</text>
+    <circle cx="240" cy="132" r="3" fill="#1f2933"/><text x="252" y="137" class="text">Path Lights</text>
+  </g>
+
+  <g transform="translate(952 356)">
+    <rect width="424" height="204" rx="8" fill="#fff" stroke="#d8dee8"/>
+    <text x="18" y="30" class="h3">SYSTEM</text>
+    <rect x="18" y="48" width="386" height="116" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <text x="34" y="78" class="text">Homebridge</text>
+    <circle cx="38" cy="104" r="3" fill="#1f2933"/><text x="50" y="109" class="text">Security Mode Helper</text>
+    <circle cx="38" cy="132" r="3" fill="#1f2933"/><text x="50" y="137" class="text">Webhook Contact</text>
+  </g>
+
+  <g transform="translate(64 602)">
+    <rect width="1312" height="190" rx="8" fill="#fff" stroke="#d8dee8"/>
+    <text x="18" y="30" class="h3">AUTOMATION DETAIL PREVIEW</text>
+    <text x="18" y="64" class="h2">Example Front Gate Opens</text>
+    <rect x="18" y="86" width="396" height="78" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <text x="34" y="112" class="h3">WHEN</text>
+    <text x="34" y="142" class="text">Gate Contact changes door state</text>
+    <rect x="458" y="86" width="396" height="78" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <text x="474" y="112" class="h3">IF</text>
+    <text x="474" y="142" class="text">sunset &lt;= now(); sunrise &gt; now()</text>
+    <rect x="898" y="86" width="396" height="78" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <text x="914" y="112" class="h3">THEN</text>
+    <text x="914" y="142" class="text">Turn on Driveway Lights</text>
+  </g>
+</svg>

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "themes": [
+    "Security and alarm",
+    "Presence simulation",
+    "Lighting",
+    "Climate",
+    "Access",
+    "Buttons",
+    "Media",
+    "Other"
+  ],
+  "automationThemeOverrides": {
+    "Example Away Mode Turns On": "Security and alarm",
+    "Example Button Single Press": "Buttons"
+  }
+}

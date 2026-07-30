@@ -1,0 +1,42 @@
+{
+  "bridge": {
+    "name": "Example Homebridge",
+    "username": "00:00:00:00:00:00",
+    "port": 51000,
+    "pin": "000-00-000"
+  },
+  "platforms": [
+    {
+      "platform": "AutomationSwitches",
+      "switches": [
+        {
+          "type": "security",
+          "name": "Example Security System",
+          "armStayButtonLabel": "Example Home Mode",
+          "armAwayButtonLabel": "Example Away Mode",
+          "armNightButtonLabel": "Example Night Mode",
+          "zones": [
+            "Ground Floor",
+            "First Floor",
+            "Exterior"
+          ]
+        },
+        {
+          "type": "automation",
+          "name": "Example Warning Delay",
+          "autoOff": true,
+          "period": 60
+        }
+      ]
+    },
+    {
+      "platform": "HttpWebHooks",
+      "sensors": [
+        {
+          "name": "Example Webhook Contact",
+          "type": "contact"
+        }
+      ]
+    }
+  ]
+}

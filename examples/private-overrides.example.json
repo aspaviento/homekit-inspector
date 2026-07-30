@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "deviceCoverageZoneOverrides": {
+    "Example Camera Facing Garden": "Exterior"
+  },
+  "manualRuleOverrides": {}
+}
