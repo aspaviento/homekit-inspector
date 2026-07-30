@@ -31,16 +31,14 @@ inspection. It was built after studying earlier public work around HomeKit data
 extraction, but the current project is centered on the macOS `homed` SQLite
 store, richer rule decoding, and a self-contained HTML inspector.
 
-The implementation was developed with assistance from OpenAI Codex. Codex was
-used iteratively to inspect the local CoreData schema, refine read-only SQLite
-queries, decode HomeKit/Eve predicate and action payloads, build the HTML
-viewer, create synthetic public examples, and audit the repository for private
-household data before publication.
+The implementation was developed with assistance from OpenAI Codex. Codex
+helped inspect the local CoreData schema, refine read-only SQLite queries,
+decode HomeKit/Eve predicate and action payloads, build the HTML viewer, create
+synthetic examples, and review the repository for public release.
 
-The project intentionally separates raw HomeKit extraction, technical decoding,
-optional Homebridge context, and user-maintained annotations. That separation is
-part of the design: the tool should show what can be derived from HomeKit first,
-then clearly identify any external context or local editorial metadata.
+The project separates raw HomeKit extraction, technical decoding, optional
+Homebridge context, and user-maintained annotations. The inspector presents
+HomeKit-derived data first, then labels any external context or local metadata.
 
 ## Safety Model
 
@@ -94,11 +92,12 @@ Open:
 local-output/homekit_inspector.html
 ```
 
-The HTML file is self-contained and can be opened directly in a browser. It is
-not safe to publish unless generated from redacted or synthetic data.
+The HTML file is self-contained and can be opened directly in a browser. It
+embeds the extracted HomeKit data, so real-home reports belong in private local
+storage.
 
-To generate a public-safe demo from the synthetic example without reading a
-local HomeKit database:
+To generate a demo from the synthetic example without reading a local HomeKit
+database:
 
 ```bash
 python3 scripts/generate_inspector.py \
@@ -159,9 +158,8 @@ names, and device names are private.
 
 ## Private Overrides
 
-Private overrides are a last-resort local layer for facts that cannot be
-derived from HomeKit or context sources. They are intentionally separate from
-the extractor.
+Private overrides cover local facts that cannot be derived from HomeKit or
+context sources. They are kept separate from the extractor.
 
 ```bash
 python3 scripts/generate_inspector.py \
@@ -211,18 +209,20 @@ homekit-inspector/
 │   └── generate_inspector.py
 ```
 
-## Screenshots
+## Demo Assets
 
-Screenshots should be generated only from synthetic or heavily redacted data.
-The `assets/` directory is reserved for public-safe captures of the inspector
-using `examples/sample_output.json`.
+The image in `assets/` shows the inspector with synthetic example data from
+`examples/sample_output.json`. Real-home screenshots can expose room names,
+device names, schedules, and security behavior, so they are best kept out of
+public repositories.
 
 ## Limitations
 
 - The HomeKit database schema is private and can change between macOS releases.
 - Full Disk Access is required because `~/Library/HomeKit/` is TCC-protected.
 - Some Eve/HomeKit predicates are partially opaque and may need review.
-- Some values are intentionally reported as unresolved instead of guessed.
+- Some values are reported as unresolved when the decoder cannot identify them
+  confidently.
 - Context-source enrichment depends on optional files such as Homebridge
   `config.json`.
 
@@ -242,4 +242,4 @@ Compile-check the Python scripts:
 PYTHONPYCACHEPREFIX=/tmp/homekit-pycache python3 -m py_compile scripts/*.py
 ```
 
-Generated outputs should stay in `local-output/` or another ignored directory.
+Generated outputs belong in `local-output/` or another ignored directory.

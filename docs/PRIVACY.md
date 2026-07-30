@@ -29,7 +29,7 @@ schedules. Treat generated files as sensitive by default.
 
 ## Local Output
 
-Generated files should live under `local-output/`, which is ignored by git.
+Generated files live under `local-output/`, which is ignored by git.
 
 ```bash
 mkdir -p local-output
@@ -44,7 +44,7 @@ Homebridge configuration often contains credentials, webhook URLs, hostnames,
 serial numbers, plugin topology, and room/device naming conventions. Do not
 commit a real Homebridge config.
 
-For documentation and tests, use a small synthetic file such as
+Documentation and tests can use a small synthetic file such as
 `examples/homebridge-context.example.json`.
 
 ## Theme Configuration
@@ -57,8 +57,8 @@ real assignments in `local-output/homekit_theme_config.json`.
 
 ## Private Overrides
 
-Private overrides should be rare. They are for local facts that cannot be
-derived from HomeKit or a context source.
+Private overrides cover local facts that cannot be derived from HomeKit or a
+context source.
 
 Use `examples/private-overrides.example.json` as the public schema reference.
 Keep real overrides in `local-output/homekit_private_overrides.json`.
@@ -81,11 +81,11 @@ Also check tracked generated files:
 git ls-files local-output output
 ```
 
-The command should not show real generated HomeKit outputs.
+The command is expected to return no real generated HomeKit outputs.
 
 ## Runtime Safety
 
-The extractor must remain read-only:
+The extractor is read-only:
 
 - open SQLite with `mode=ro`;
 - do not write to `core.sqlite`, `core.sqlite-wal`, or `core.sqlite-shm`;

@@ -80,7 +80,7 @@ theme-config JSON
   -> Theme Editor defaults
 
 private-overrides JSON
-  -> local exceptions that cannot be derived from HomeKit/context
+  -> local metadata not present in HomeKit/context sources
 ```
 
 ## CoreData Handling
@@ -122,14 +122,10 @@ The first supported source is Homebridge `config.json`. For example,
 switches. The inspector can show these as derived relations in the **Context
 Sources** view and as notes on related automations.
 
-Rule:
-
-```text
-Context may explain HomeKit data, but it must not replace HomeKit data.
-```
+Context explains HomeKit data without replacing it.
 
 For example, if HomeKit says an automation is triggered by a helper switch, the
-inspector should keep that helper switch as the trigger and add context saying
+inspector keeps that helper switch as the trigger and adds context describing
 which Homebridge concept the helper represents.
 
 ## Themes
@@ -137,18 +133,18 @@ which Homebridge concept the helper represents.
 Themes are not extracted from HomeKit. They are user-maintained editorial
 metadata used to organize automations in the inspector.
 
-Theme assignments live in:
+Theme assignments can live in:
 
 ```text
 local-output/homekit_theme_config.json
 ```
 
-or browser `localStorage`. They should not be hard-coded into the extractor.
+or browser `localStorage`.
 
 ## Private Overrides
 
-Private overrides are a last-resort escape hatch for local facts that cannot be
-derived from HomeKit or a context source.
+Private overrides cover local facts that cannot be derived from HomeKit or a
+context source.
 
 They live in:
 
@@ -156,8 +152,8 @@ They live in:
 local-output/homekit_private_overrides.json
 ```
 
-Public examples document the schema, but real overrides should never be
-committed.
+Public examples document the schema. Real overrides usually contain household
+semantics and belong in ignored local output directories.
 
 ## What This Project Is Based On
 
@@ -184,5 +180,4 @@ Generated output can reveal:
 - scene behavior;
 - bridge topology.
 
-Generated files belong in ignored local directories such as `local-output/` and
-must be treated as private.
+Generated files belong in ignored local directories such as `local-output/`.

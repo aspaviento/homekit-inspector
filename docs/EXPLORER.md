@@ -22,8 +22,8 @@ Optional:
 - `--theme-config`: local theme assignments for the Theme Editor.
 - `--private-overrides`: local exceptions that cannot be derived from HomeKit
   or context sources.
-- `--no-db`: skip SQLite reads, mainly for synthetic examples and public-safe
-  documentation demos.
+- `--no-db`: skip SQLite reads when generating the inspector from synthetic
+  example data.
 
 ## Recommended Command
 
@@ -37,7 +37,8 @@ python3 scripts/generate_inspector.py \
   --output-dir local-output
 ```
 
-All files in `local-output/` should be treated as private.
+Files in `local-output/` can contain the full HomeKit export and are intended
+for local use.
 
 For a synthetic demo that does not read a local HomeKit database:
 
@@ -89,8 +90,8 @@ Homebridge `config.json` and can identify:
 - webhooks from Homebridge webhook plugins;
 - security-system mode button relations from `homebridge-automation-switches`.
 
-Context sources must add traceable metadata only. They should not replace raw
-HomeKit events, conditions, or actions.
+Context sources add traceable metadata. Raw HomeKit events, conditions, and
+actions remain visible as extracted.
 
 ### Automations
 
@@ -118,17 +119,17 @@ Assignments are stored in browser `localStorage` or loaded from
 `--theme-config`. Use export/import from the UI to move assignments between
 machines.
 
-## Context vs Overrides
+## Data Layers
 
-Prefer this order:
+The inspector keeps four layers separate:
 
 1. raw HomeKit extraction;
 2. technical decoding from HomeKit blobs and predicates;
 3. context-source enrichment from verifiable external configuration;
-4. private overrides only for unresolved local exceptions.
+4. private overrides for unresolved local exceptions.
 
-Overrides should not be used to summarize automations when the extractor can
-show the underlying triggers, conditions, and actions.
+Overrides are useful for local naming or semantic corrections. They do not
+replace extracted triggers, conditions, or actions.
 
 ## Output Safety
 
