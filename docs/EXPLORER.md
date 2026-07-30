@@ -71,6 +71,8 @@ The generated `homekit_inspector_data.json` has these main sections:
 
 ### Home Layout
 
+![Home Layout tab](../assets/tab-home-layout.svg)
+
 Shows the static HomeKit structure: zones, rooms, accessories, and services.
 Unnamed HomeKit rooms are labeled with their internal room id rather than being
 merged into a generic unassigned bucket.
@@ -84,6 +86,8 @@ security system service.
 
 ### Hubs & Bridges
 
+![Hubs and Bridges tab](../assets/tab-hubs-bridges.svg)
+
 Shows Home hubs and bridge relationships found in HomeKit. Bridge mappings are
 derived from HomeKit's `ZHOSTACCESSORY` relationship.
 
@@ -95,6 +99,8 @@ Homebridge, Home Assistant bridges, Hue, Aqara, or similar integrations enter
 the HomeKit graph.
 
 ### Context Sources
+
+![Context Sources tab](../assets/tab-context-sources.svg)
 
 Shows optional external context. The current implementation supports
 Homebridge `config.json` and can identify:
@@ -115,12 +121,16 @@ visible as a switch or security-system service.
 
 ### Manufacturers
 
+![Manufacturers tab](../assets/tab-manufacturers.svg)
+
 Shows accessories grouped by manufacturer, using the manufacturer and model
 values exposed in HomeKit. This is useful for auditing device families,
 spotting bridge-imported accessories, and understanding whether a group of
 automations depends heavily on a single vendor or integration.
 
 ### Automations
+
+![Automations tab](../assets/tab-automations.svg)
 
 Shows each automation as:
 
@@ -153,6 +163,8 @@ types that need another decoder pass.
 
 ### Scenes
 
+![Scenes tab](../assets/tab-scenes.svg)
+
 Shows HomeKit scenes separately from automations. Automations can reference a
 scene, but scene details stay in the Scenes view to avoid duplicating actions.
 
@@ -162,6 +174,8 @@ the automation explains when and why the scene runs, while the scene view
 explains which accessories and characteristics the scene changes.
 
 ### Theme Editor
+
+![Theme Editor tab](../assets/tab-theme-editor.svg)
 
 Themes are user editorial metadata. They are not extracted from HomeKit.
 

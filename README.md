@@ -220,7 +220,7 @@ tab.
 
 ```text
 homekit-inspector/
-├── assets/                      # Synthetic screenshots for documentation
+├── assets/                      # Synthetic inspector images for documentation
 ├── docs/
 │   ├── EXPLORER.md              # Inspector and context-source details
 │   ├── PRIVACY.md               # Sensitive-data and publishing checklist
@@ -240,10 +240,21 @@ homekit-inspector/
 
 ## Demo Assets
 
-The image in `assets/` shows the inspector with synthetic example data from
-`examples/sample_output.json`. Real-home screenshots can expose room names,
-device names, schedules, and security behavior, so they are best kept out of
-public repositories.
+The images in `assets/` show the inspector with synthetic example data from
+`examples/sample_output.json`. They include one overview image and one image per
+main inspector tab:
+
+- [Overview](assets/homekit-inspector-overview.svg)
+- [Home Layout](assets/tab-home-layout.svg)
+- [Hubs & Bridges](assets/tab-hubs-bridges.svg)
+- [Context Sources](assets/tab-context-sources.svg)
+- [Manufacturers](assets/tab-manufacturers.svg)
+- [Automations](assets/tab-automations.svg)
+- [Scenes](assets/tab-scenes.svg)
+- [Theme Editor](assets/tab-theme-editor.svg)
+
+Real-home screenshots can expose room names, device names, schedules, and
+security behavior, so they are best kept out of public repositories.
 
 ## Limitations
 

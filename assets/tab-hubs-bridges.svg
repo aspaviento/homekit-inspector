@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Hubs and Bridges tab example</title>
+  <desc id="desc">Synthetic HomeKit Inspector Hubs and Bridges tab showing home hubs, bridges, and bridged accessories.</desc>
+  <rect width="960" height="540" fill="#f6f7f9"/>
+  <style>.title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}.h{font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b;letter-spacing:.7px}.t{font:500 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}.m{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b}.b{font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#19713b}</style>
+  <text x="34" y="44" class="title">Hubs &amp; Bridges</text>
+  <text x="34" y="70" class="m">Resident devices and bridge relationships from HomeKit</text>
+  <g transform="translate(34 104)">
+    <rect width="420" height="330" rx="8" fill="#fff" stroke="#d8dee8"/>
+    <text x="18" y="32" class="h">HOME HUBS</text>
+    <rect x="18" y="58" width="384" height="70" rx="7" fill="#edf6fa" stroke="#9bcadd"/>
+    <text x="34" y="86" class="t">Living Room HomePod</text><text x="286" y="86" class="b">Primary</text>
+    <text x="34" y="110" class="m">Reachable, Apple, Living Room</text>
+    <rect x="18" y="148" width="384" height="70" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <text x="34" y="176" class="t">Kitchen HomePod mini</text>
+    <text x="34" y="200" class="m">Reachable, Apple, Kitchen</text>
+    <rect x="18" y="238" width="384" height="70" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <text x="34" y="266" class="t">Office Apple TV</text>
+    <text x="34" y="290" class="m">Standby, Apple, Office</text>
+  </g>
+  <g transform="translate(486 104)">
+    <rect width="440" height="330" rx="8" fill="#fff" stroke="#d8dee8"/>
+    <text x="18" y="32" class="h">BRIDGES</text>
+    <text x="34" y="70" class="t">Homebridge Main</text>
+    <text x="54" y="98" class="m">Example Camera, Webhook Contact, Security Helper</text>
+    <line x1="34" y1="118" x2="406" y2="118" stroke="#d8dee8"/>
+    <text x="34" y="154" class="t">Hue Bridge</text>
+    <text x="54" y="182" class="m">Kitchen Table Light, Path Light, Wall Switch</text>
+    <line x1="34" y1="202" x2="406" y2="202" stroke="#d8dee8"/>
+    <text x="34" y="238" class="t">Home Assistant Bridge</text>
+    <text x="54" y="266" class="m">Energy Sensor, Water Valve, Appliance Status</text>
+  </g>
+</svg>
