@@ -613,6 +613,7 @@ h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: 0; }
 .nav-row { display: grid; grid-template-columns: minmax(0, auto) minmax(240px, 1fr); gap: 16px; align-items: center; }
 .filters { display: none; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .filters.visible { display: grid; }
+.filter-toggle { display: none; border: 1px solid var(--line-strong); border-radius: 6px; background: #fff; color: var(--text); padding: 9px 11px; font-weight: 650; cursor: pointer; }
 .tabs { display: flex; flex-wrap: nowrap; gap: 2px; padding: 3px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); overflow-x: auto; }
 .tab { border: 0; border-radius: 5px; background: transparent; color: var(--muted); padding: 8px 10px; font-weight: 600; cursor: pointer; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
 .tab:hover { color: var(--text); background: #fff; }
@@ -682,14 +683,32 @@ code { background: #edf2f8; padding: 1px 4px; border-radius: 4px; }
   .columns { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
-  .title-row { align-items: flex-start; }
-  .home-context { max-width: 50%; }
-  h1 { font-size: 21px; }
-  .summary { grid-template-columns: repeat(2, 1fr); }
-  .tabs { display: grid; grid-template-columns: 1fr 1fr; }
-  .filters { grid-template-columns: 1fr; }
+  header { position: static; }
+  .wrap { padding: 10px 12px; }
+  .title-row { align-items: center; gap: 10px; margin-bottom: 10px; }
+  .brand { gap: 8px; min-width: 0; }
+  .brand-mark { width: 30px; height: 30px; border-radius: 7px; font-size: 12px; flex: 0 0 auto; }
+  h1 { font-size: 19px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .home-context { max-width: 42%; }
+  .home-context span { font-size: 9px; }
+  .home-name { font-size: 12px; line-height: 1.25; }
+  .summary { display: flex; gap: 7px; overflow-x: auto; margin: 0 -12px 8px; padding: 0 12px 2px; scrollbar-width: none; }
+  .summary::-webkit-scrollbar, .tabs::-webkit-scrollbar { display: none; }
+  .metric { flex: 0 0 92px; min-height: 48px; padding: 7px 9px 6px 11px; }
+  .metric b { font-size: 17px; }
+  .metric span { font-size: 10px; }
+  .nav-row { grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+  .tabs { grid-column: 1 / -1; order: 1; flex-wrap: nowrap; margin: 0 -12px; padding: 3px 12px; border-left: 0; border-right: 0; border-radius: 0; background: transparent; }
+  .tab { flex: 0 0 auto; padding: 7px 9px; white-space: nowrap; }
+  .global-search { order: 2; min-width: 0; }
+  .filter-toggle { display: none; order: 3; }
+  .filter-toggle.visible { display: inline-flex; align-items: center; justify-content: center; min-width: 76px; }
+  .filters.visible { display: none; }
+  .filters.visible.open { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 8px; padding-top: 8px; }
   .detail { padding: 16px; }
   .grid { grid-template-columns: 1fr; }
+  main.wrap { padding-top: 12px; }
+  .list { max-height: none; }
 }
 </style>
 </head>
@@ -713,6 +732,7 @@ code { background: #edf2f8; padding: 1px 4px; border-radius: 4px; }
         <button class="tab" data-tab="config">Theme Editor</button>
       </div>
       <input class="global-search" id="search" type="search" placeholder="Search current view">
+      <button class="filter-toggle" id="filterToggle" type="button" aria-expanded="false">Filters</button>
     </div>
     <div class="filters" id="automationFilters">
       <select id="status"><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
@@ -735,6 +755,7 @@ let currentTab = 'layout';
 let selectedSceneId = data.scenes[0]?.id;
 let selectedId = data.rules[0]?.id;
 let quickFilter = '';
+let filtersExpanded = false;
 const els = {
   homeName: document.getElementById('homeName'),
   summary: document.getElementById('summary'),
@@ -745,6 +766,7 @@ const els = {
   theme: document.getElementById('theme'),
   room: document.getElementById('room'),
   confidence: document.getElementById('confidence'),
+  filterToggle: document.getElementById('filterToggle'),
   automationFilters: document.getElementById('automationFilters'),
   list: document.getElementById('list'),
   detail: document.getElementById('detail'),
@@ -980,6 +1002,7 @@ function resetAutomationFilters() {
 }
 function applySummaryAction(action) {
   resetAutomationFilters();
+  filtersExpanded = false;
   if (action === 'scenes') {
     setTab('scenes');
     render();
@@ -1009,6 +1032,10 @@ function init() {
   fillSelect(els.room, uniq(data.rules.flatMap(rule => rule.rooms)));
   for (const el of [els.search, els.status, els.theme, els.room, els.confidence]) el.addEventListener('input', () => {
     quickFilter = '';
+    render();
+  });
+  els.filterToggle.addEventListener('click', () => {
+    filtersExpanded = !filtersExpanded;
     render();
   });
   els.tabs.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
@@ -1409,6 +1436,11 @@ function render() {
   sidebar.style.display = currentTab === 'layout' || currentTab === 'hubs' || currentTab === 'bridges' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'config' ? 'none' : '';
   els.search.style.display = '';
   els.automationFilters.classList.toggle('visible', currentTab === 'automations');
+  els.automationFilters.classList.toggle('open', currentTab === 'automations' && filtersExpanded);
+  els.filterToggle.classList.toggle('visible', currentTab === 'automations');
+  els.filterToggle.setAttribute('aria-expanded', String(currentTab === 'automations' && filtersExpanded));
+  const hasFilter = Boolean(els.status.value || els.theme.value || els.room.value || els.confidence.value || quickFilter);
+  els.filterToggle.textContent = filtersExpanded ? 'Hide' : (hasFilter ? 'Filters *' : 'Filters');
   if (currentTab === 'layout') return renderLayout();
   if (currentTab === 'hubs') return renderHubs();
   if (currentTab === 'bridges') return renderBridges();
