@@ -246,6 +246,16 @@ def bytes_to_hex(value):
     return value
 
 
+def action_type_name(entity_id):
+    return {
+        36: "characteristicWrite",
+        37: "matterCommand",
+        38: "mediaPlayback",
+        39: "naturalLighting",
+        40: "shortcut",
+    }.get(entity_id, f"ent_{entity_id}")
+
+
 def open_readonly_sqlite(path):
     return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
 
@@ -475,7 +485,8 @@ def load_scenes(db_path):
     cur = conn.cursor()
     cur.execute(
         "SELECT aset.Z_PK, aset.ZNAME, aset.ZTYPE, a.Z_PK, a.Z_ENT, "
-        "a.ZTARGETVALUE, s.ZNAME, s.ZEXPECTEDCONFIGUREDNAME, s.ZPROVIDEDNAME, "
+        "a.ZTARGETVALUE, a.ZSTATE, a.ZVOLUME, "
+        "s.ZNAME, s.ZEXPECTEDCONFIGUREDNAME, s.ZPROVIDEDNAME, "
         "acc.ZCONFIGUREDNAME, acc.ZPROVIDEDNAME, r.ZNAME, "
         "c.ZMANUFACTURERDESCRIPTION, c.ZFORMAT "
         "FROM ZMKFACTIONSET aset "
@@ -497,6 +508,8 @@ def load_scenes(db_path):
             action_id,
             action_ent,
             target_value,
+            state,
+            volume,
             service_name,
             service_configured_name,
             service_provided_name,
@@ -518,7 +531,7 @@ def load_scenes(db_path):
         if action_id is None:
             continue
         action = {
-            "actionType": "characteristicWrite" if action_ent == 36 else f"ent_{action_ent}",
+            "actionType": action_type_name(action_ent),
             "targetValueRaw": bytes_to_hex(target_value),
             "characteristic": characteristic or "",
             "format": fmt or "",
@@ -526,13 +539,17 @@ def load_scenes(db_path):
             "room": room or "",
             "serviceName": service_configured_name or service_name or service_provided_name or accessory_provided_name,
         }
+        if state is not None:
+            action["state"] = state
+        if volume is not None:
+            action["volume"] = volume
         rule = reports.action_rule(action, scene["name"])
         scene["actions"].append(
             {
                 "target": reports.action_target(action) or "",
                 "room": room or "",
                 "characteristic": characteristic or "",
-                "value": reports.value_text(reports.action_value(action)),
+                "value": reports.value_text(reports.action_value(action)) if target_value is not None else "",
                 "rule": translate_rule(rule) if rule else "",
             }
         )
