@@ -1043,6 +1043,22 @@ function bindAutomationUsageLinks() {
     render();
   }));
 }
+function accessoryCard(accessory, options = {}) {
+  const showManufacturer = options.showManufacturer ?? false;
+  return `
+    <div class="card">
+      <h4>${esc(accessory.name)}</h4>
+      <p>
+        <span class="badge">${esc(accessory.room)}</span>
+        <span class="badge">${esc(accessory.zone)}</span>
+      </p>
+      ${showManufacturer && accessory.manufacturer ? `<p><b>Manufacturer:</b> ${esc(accessory.manufacturer)}</p>` : ''}
+      ${accessory.model ? `<p><b>Model:</b> ${esc(accessory.model)}</p>` : ''}
+      ${accessory.services?.length ? `<p class="empty">${esc(accessory.services.map(service => service.name).slice(0, 8).join(', '))}${accessory.services.length > 8 ? '...' : ''}</p>` : ''}
+      ${automationUsageBlock(accessory)}
+    </div>
+  `;
+}
 function manufacturers() {
   const groups = new Map();
   for (const accessory of allAccessories()) {
@@ -1348,17 +1364,11 @@ function renderManufacturers() {
           <span class="badge">${models.length} models</span>
           <span class="badge">${rooms.length} rooms</span>
         </div>
-        <div class="grid">${group.accessories.map(accessory => `
-          <div class="card">
-            <h4>${esc(accessory.name)}</h4>
-            <p><span class="badge">${esc(accessory.room)}</span> <span class="badge">${esc(accessory.zone)}</span></p>
-            ${accessory.model ? `<p><b>Model:</b> ${esc(accessory.model)}</p>` : ''}
-            ${accessory.services?.length ? `<p class="empty">${esc(accessory.services.map(service => service.name).slice(0, 8).join(', '))}${accessory.services.length > 8 ? '...' : ''}</p>` : ''}
-          </div>
-        `).join('')}</div>
+        <div class="grid">${group.accessories.map(accessory => accessoryCard(accessory)).join('')}</div>
       </div>`;
     }).join('') || '<div class="card empty">No matching manufacturers or accessories.</div>'}
   `;
+  bindAutomationUsageLinks();
 }
 function renderHubs() {
   els.main.classList.add('single');
