@@ -1,24 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
   <title id="title">Manufacturers tab example</title>
   <desc id="desc">Synthetic HomeKit Inspector Manufacturers tab grouped by vendor.</desc>
-  <rect width="960" height="540" fill="#f6f7f9"/>
-  <style>.title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}.h{font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b;letter-spacing:.7px}.t{font:500 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}.m{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b}.n{font:700 32px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#146c94}</style>
+  <rect width="960" height="540" fill="#f4f7fb"/>
+  <style>.title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}.h{font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a;letter-spacing:.7px}.t{font:500 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}.m{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a}.n{font:700 32px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#2563eb}</style>
   <text x="34" y="44" class="title">Manufacturers</text>
   <text x="34" y="70" class="m">Accessory inventory grouped by manufacturer and model</text>
   <g transform="translate(34 104)">
-    <rect width="270" height="300" rx="8" fill="#fff" stroke="#d8dee8"/>
+    <rect width="270" height="300" rx="8" fill="#fff" stroke="#dce3ed"/><rect width="270" height="4" fill="#2563eb"/>
     <text x="18" y="34" class="n">18</text><text x="78" y="34" class="t">Signify</text>
     <text x="18" y="74" class="h">MODELS</text>
     <text x="18" y="106" class="m">Hue white lamp</text><text x="18" y="132" class="m">Hue dimmer switch</text><text x="18" y="158" class="m">Outdoor spotlight</text>
   </g>
   <g transform="translate(344 104)">
-    <rect width="270" height="300" rx="8" fill="#fff" stroke="#d8dee8"/>
+    <rect width="270" height="300" rx="8" fill="#fff" stroke="#dce3ed"/><rect width="270" height="4" fill="#0891b2"/>
     <text x="18" y="34" class="n">9</text><text x="66" y="34" class="t">Eve Systems</text>
     <text x="18" y="74" class="h">MODELS</text>
     <text x="18" y="106" class="m">Eve Door</text><text x="18" y="132" class="m">Eve Motion</text><text x="18" y="158" class="m">Eve Energy</text>
   </g>
   <g transform="translate(654 104)">
-    <rect width="270" height="300" rx="8" fill="#fff" stroke="#d8dee8"/>
+    <rect width="270" height="300" rx="8" fill="#fff" stroke="#dce3ed"/><rect width="270" height="4" fill="#6d5bd0"/>
     <text x="18" y="34" class="n">7</text><text x="66" y="34" class="t">Homebridge</text>
     <text x="18" y="74" class="h">SERVICES</text>
     <text x="18" y="106" class="m">Virtual switches</text><text x="18" y="132" class="m">Webhook sensors</text><text x="18" y="158" class="m">Security helpers</text>

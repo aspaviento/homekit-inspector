@@ -1,43 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
   <title id="title">Home Layout tab example</title>
   <desc id="desc">Synthetic HomeKit Inspector Home Layout tab with zones, rooms, accessories, and services.</desc>
-  <rect width="960" height="540" fill="#f6f7f9"/>
+  <rect width="960" height="540" fill="#f4f7fb"/>
   <style>
-    .title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}
-    .h{font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b;letter-spacing:.7px}
-    .t{font:500 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}
-    .m{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b}
+    .title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}
+    .h{font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a;letter-spacing:.7px}
+    .t{font:500 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}
+    .m{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a}
   </style>
   <text x="34" y="44" class="title">Home Layout</text>
   <text x="34" y="70" class="m">Zones, rooms, accessories, and exposed services</text>
   <g transform="translate(34 104)">
-    <rect width="280" height="340" rx="8" fill="#fff" stroke="#d8dee8"/>
+    <rect width="280" height="340" rx="8" fill="transparent"/>
     <text x="18" y="30" class="h">GROUND FLOOR</text>
-    <rect x="18" y="52" width="244" height="104" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <rect x="18" y="52" width="244" height="104" rx="7" fill="#fff" stroke="#dce3ed"/><rect x="18" y="52" width="3" height="104" fill="#2563eb"/>
     <text x="34" y="82" class="t">Kitchen</text>
     <text x="34" y="108" class="m">Kitchen Motion, Table Light</text>
     <text x="34" y="132" class="m">HomePod Sensor, Temperature</text>
-    <rect x="18" y="176" width="244" height="104" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <rect x="18" y="176" width="244" height="104" rx="7" fill="#fff" stroke="#dce3ed"/><rect x="18" y="176" width="3" height="104" fill="#2563eb"/>
     <text x="34" y="206" class="t">Living Room</text>
     <text x="34" y="232" class="m">Floor Lamp, Window Contact</text>
     <text x="34" y="256" class="m">Television, Light Sensor</text>
   </g>
   <g transform="translate(340 104)">
-    <rect width="280" height="340" rx="8" fill="#fff" stroke="#d8dee8"/>
+    <rect width="280" height="340" rx="8" fill="transparent"/>
     <text x="18" y="30" class="h">EXTERIOR</text>
-    <rect x="18" y="52" width="244" height="104" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <rect x="18" y="52" width="244" height="104" rx="7" fill="#fff" stroke="#dce3ed"/><rect x="18" y="52" width="3" height="104" fill="#0891b2"/>
     <text x="34" y="82" class="t">Front Gate</text>
     <text x="34" y="108" class="m">Gate Contact, Driveway Light</text>
     <text x="34" y="132" class="m">Camera, Motion Sensor</text>
-    <rect x="18" y="176" width="244" height="104" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <rect x="18" y="176" width="244" height="104" rx="7" fill="#fff" stroke="#dce3ed"/><rect x="18" y="176" width="3" height="104" fill="#0891b2"/>
     <text x="34" y="206" class="t">Garden</text>
     <text x="34" y="232" class="m">Weather Station, Path Lights</text>
     <text x="34" y="256" class="m">Irrigation Valve</text>
   </g>
   <g transform="translate(646 104)">
-    <rect width="280" height="340" rx="8" fill="#fff" stroke="#d8dee8"/>
+    <rect width="280" height="340" rx="8" fill="transparent"/>
     <text x="18" y="30" class="h">SYSTEM</text>
-    <rect x="18" y="52" width="244" height="104" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <rect x="18" y="52" width="244" height="104" rx="7" fill="#fff" stroke="#dce3ed"/><rect x="18" y="52" width="3" height="104" fill="#6d5bd0"/>
     <text x="34" y="82" class="t">Homebridge</text>
     <text x="34" y="108" class="m">Security Mode Helper</text>
     <text x="34" y="132" class="m">Webhook Contact, Virtual Switch</text>

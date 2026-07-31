@@ -1,29 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
   <title id="title">Context Sources tab example</title>
   <desc id="desc">Synthetic HomeKit Inspector Context Sources tab showing Homebridge helpers and relations.</desc>
-  <rect width="960" height="540" fill="#f6f7f9"/>
-  <style>.title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}.h{font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b;letter-spacing:.7px}.t{font:500 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}.m{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b}.chip{font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#0f5473}</style>
+  <rect width="960" height="540" fill="#f4f7fb"/>
+  <style>.title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}.h{font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a;letter-spacing:.7px}.t{font:500 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}.m{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a}.chip{font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1749b1}</style>
   <text x="34" y="44" class="title">Context Sources</text>
   <text x="34" y="70" class="m">External config can explain helper accessories without replacing HomeKit data</text>
-  <rect x="34" y="104" width="892" height="330" rx="8" fill="#fff" stroke="#d8dee8"/>
+  <rect x="34" y="104" width="892" height="330" rx="8" fill="#fff" stroke="#dce3ed"/>
   <text x="58" y="140" class="h">HOMEBRIDGE CONFIG</text>
   <g transform="translate(58 168)">
-    <rect width="250" height="190" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <rect width="250" height="190" rx="7" fill="#fff" stroke="#dce3ed"/><rect width="250" height="3" fill="#6d5bd0"/>
     <text x="18" y="32" class="t">AutomationSwitches</text>
-    <rect x="18" y="54" width="104" height="24" rx="12" fill="#dff1f7"/><text x="34" y="71" class="chip">security</text>
+    <rect x="18" y="54" width="104" height="24" rx="5" fill="#edf4ff" stroke="#8ab2ff"/><text x="34" y="71" class="chip">security</text>
     <text x="18" y="110" class="m">Mode buttons</text>
     <text x="18" y="136" class="m">Zone helpers</text>
     <text x="18" y="162" class="m">Warning delay switch</text>
   </g>
   <g transform="translate(352 168)">
-    <rect width="250" height="190" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <rect width="250" height="190" rx="7" fill="#fff" stroke="#dce3ed"/><rect width="250" height="3" fill="#0891b2"/>
     <text x="18" y="32" class="t">HttpWebHooks</text>
-    <rect x="18" y="54" width="92" height="24" rx="12" fill="#dff1f7"/><text x="34" y="71" class="chip">contact</text>
+    <rect x="18" y="54" width="92" height="24" rx="5" fill="#edf4ff" stroke="#8ab2ff"/><text x="34" y="71" class="chip">contact</text>
     <text x="18" y="110" class="m">Webhook Contact</text>
     <text x="18" y="136" class="m">Tablet control event</text>
   </g>
   <g transform="translate(646 168)">
-    <rect width="250" height="190" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <rect width="250" height="190" rx="7" fill="#fff" stroke="#dce3ed"/><rect width="250" height="3" fill="#11834f"/>
     <text x="18" y="32" class="t">Derived relations</text>
     <text x="18" y="72" class="m">Away Mode -> Security system</text>
     <text x="18" y="106" class="m">Webhook Contact -> Alarm mode UI</text>
