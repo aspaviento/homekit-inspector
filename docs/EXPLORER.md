@@ -8,6 +8,9 @@ The header shows the Home name and, when the export contains `extractionDate`,
 the capture time for the static report. This date comes from the HomeKit JSON
 export, not from the browser load time or LAN server start time.
 
+The interface follows the browser or operating-system color scheme preference,
+using light or dark styling automatically.
+
 ## Inputs
 
 Required:
