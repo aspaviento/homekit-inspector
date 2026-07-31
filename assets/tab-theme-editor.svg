@@ -1,23 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
   <title id="title">Theme Editor tab example</title>
   <desc id="desc">Synthetic HomeKit Inspector Theme Editor tab showing local automation theme assignments.</desc>
-  <rect width="960" height="540" fill="#f6f7f9"/>
-  <style>.title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}.h{font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b;letter-spacing:.7px}.t{font:500 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1f2933}.m{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#65758b}.btn{font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#fff}</style>
+  <rect width="960" height="540" fill="#f4f7fb"/>
+  <style>.title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}.h{font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a;letter-spacing:.7px}.t{font:500 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}.m{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a}.btn{font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#fff}</style>
   <text x="34" y="44" class="title">Theme Editor</text>
   <text x="34" y="70" class="m">Local automation taxonomy stored in browser localStorage or a theme config file</text>
-  <rect x="34" y="104" width="892" height="350" rx="8" fill="#fff" stroke="#d8dee8"/>
+  <rect x="34" y="104" width="892" height="350" rx="8" fill="#fff" stroke="#dce3ed"/>
   <text x="58" y="142" class="h">AUTOMATION THEMES</text>
   <g transform="translate(58 170)">
-    <rect width="820" height="48" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <rect width="820" height="48" rx="7" fill="#f8fafc" stroke="#dce3ed"/><rect width="3" height="48" fill="#6d5bd0"/>
     <text x="18" y="30" class="t">Example Gate Opens</text>
-    <rect x="570" y="10" width="210" height="28" rx="6" fill="#fff" stroke="#d8dee8"/><text x="586" y="29" class="m">Security and alarm</text>
-    <rect y="66" width="820" height="48" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <rect x="570" y="10" width="210" height="28" rx="6" fill="#fff" stroke="#dce3ed"/><text x="586" y="29" class="m">Security and alarm</text>
+    <rect y="66" width="820" height="48" rx="7" fill="#f8fafc" stroke="#dce3ed"/><rect y="66" width="3" height="48" fill="#0891b2"/>
     <text x="18" y="96" class="t">Away Sunset Lights</text>
-    <rect x="570" y="76" width="210" height="28" rx="6" fill="#fff" stroke="#d8dee8"/><text x="586" y="95" class="m">Presence simulation</text>
-    <rect y="132" width="820" height="48" rx="7" fill="#fff" stroke="#d8dee8"/>
+    <rect x="570" y="76" width="210" height="28" rx="6" fill="#fff" stroke="#dce3ed"/><text x="586" y="95" class="m">Presence simulation</text>
+    <rect y="132" width="820" height="48" rx="7" fill="#f8fafc" stroke="#dce3ed"/><rect y="132" width="3" height="48" fill="#2563eb"/>
     <text x="18" y="162" class="t">Kitchen Button Press</text>
-    <rect x="570" y="142" width="210" height="28" rx="6" fill="#fff" stroke="#d8dee8"/><text x="586" y="161" class="m">Lighting</text>
+    <rect x="570" y="142" width="210" height="28" rx="6" fill="#fff" stroke="#dce3ed"/><text x="586" y="161" class="m">Lighting</text>
   </g>
-  <rect x="58" y="398" width="96" height="34" rx="6" fill="#146c94"/><text x="76" y="420" class="btn">Export</text>
-  <rect x="166" y="398" width="96" height="34" rx="6" fill="#146c94"/><text x="186" y="420" class="btn">Import</text>
+  <rect x="58" y="398" width="106" height="34" rx="6" fill="#2563eb"/><text x="76" y="420" class="btn">Save locally</text>
+  <rect x="176" y="398" width="142" height="34" rx="6" fill="#fff" stroke="#cbd5e1"/><text x="194" y="420" class="m">Clear assignments</text>
+  <rect x="330" y="398" width="112" height="34" rx="6" fill="#fff" stroke="#cbd5e1"/><text x="348" y="420" class="m">Export JSON</text>
 </svg>
