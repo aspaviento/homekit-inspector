@@ -475,8 +475,9 @@ def load_scenes(db_path):
     cur = conn.cursor()
     cur.execute(
         "SELECT aset.Z_PK, aset.ZNAME, aset.ZTYPE, a.Z_PK, a.Z_ENT, "
-        "a.ZTARGETVALUE, s.ZNAME, s.ZEXPECTEDCONFIGUREDNAME, acc.ZCONFIGUREDNAME, "
-        "r.ZNAME, c.ZMANUFACTURERDESCRIPTION, c.ZFORMAT "
+        "a.ZTARGETVALUE, s.ZNAME, s.ZEXPECTEDCONFIGUREDNAME, s.ZPROVIDEDNAME, "
+        "acc.ZCONFIGUREDNAME, acc.ZPROVIDEDNAME, r.ZNAME, "
+        "c.ZMANUFACTURERDESCRIPTION, c.ZFORMAT "
         "FROM ZMKFACTIONSET aset "
         "LEFT JOIN ZMKFACTION a ON a.ZACTIONSET = aset.Z_PK "
         "LEFT JOIN ZMKFSERVICE s ON s.Z_PK = a.ZSERVICE "
@@ -498,7 +499,9 @@ def load_scenes(db_path):
             target_value,
             service_name,
             service_configured_name,
+            service_provided_name,
             accessory_name,
+            accessory_provided_name,
             room,
             characteristic,
             fmt,
@@ -521,7 +524,7 @@ def load_scenes(db_path):
             "format": fmt or "",
             "accessoryName": accessory_name,
             "room": room or "",
-            "serviceName": service_configured_name or service_name,
+            "serviceName": service_configured_name or service_name or service_provided_name or accessory_provided_name,
         }
         rule = reports.action_rule(action, scene["name"])
         scene["actions"].append(
@@ -529,7 +532,7 @@ def load_scenes(db_path):
                 "target": reports.action_target(action) or "",
                 "room": room or "",
                 "characteristic": characteristic or "",
-                "value": bytes_to_hex(target_value),
+                "value": reports.value_text(reports.action_value(action)),
                 "rule": translate_rule(rule) if rule else "",
             }
         )
