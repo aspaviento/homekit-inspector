@@ -84,6 +84,18 @@ each accessory. This is useful when a single physical device exposes several
 services, such as a camera with a microphone, speaker, motion sensor, or
 security system service.
 
+Accessory cards also show automation participation markers when a decoded
+automation references that accessory or one of its uniquely named services. The
+markers split active and inactive automation references and identify whether
+the accessory appears in `WHEN`, `IF`, `THEN`, or through a referenced scene.
+Clicking a marker switches to the Automations tab with the accessory name in
+the search box.
+
+These markers are intentionally conservative. They are matched from unique
+decoded accessory or service names in the generated inspector payload; duplicate
+or ambiguous names are not marked. Treat them as practical traceability aids,
+not as a full UUID-level dependency graph.
+
 ### Hubs & Bridges
 
 ![Hubs and Bridges tab](../assets/tab-hubs-bridges.svg)

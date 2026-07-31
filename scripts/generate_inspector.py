@@ -636,6 +636,13 @@ main.wrap.single { display: block; }
 .badge.active { color: #087443; border-color: #a9dec4; background: #e9f8f0; }
 .badge.inactive { color: #a62d3b; border-color: #efbdc2; background: #fff0f1; }
 .badge.warn { color: #925200; border-color: #edcf9f; background: #fff7e8; }
+.badge.automation { color: #1749b1; border-color: #b8cffb; background: #edf4ff; cursor: pointer; }
+.badge.automation:hover { border-color: #8ab2ff; background: #e0edff; }
+.badge.automation.inactive-only { color: #596579; border-color: #d3dce8; background: #f3f6fa; }
+.usage-row { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 4px; }
+.usage-list { margin-top: 5px; color: var(--muted); font-size: 12px; }
+.usage-list summary { cursor: pointer; font-weight: 650; }
+.usage-list ul { margin-top: 5px; }
 .detail { padding: 22px; }
 .detail h2 { margin: 0 0 8px; font-size: 23px; line-height: 1.25; letter-spacing: 0; }
 .detail-top { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
@@ -780,6 +787,9 @@ function filterRoom(room, q) {
 function zoneText(zone) {
   return [zone.name, ...(zone.rooms || []).map(roomText)].join(' ').toLowerCase();
 }
+function normalizeName(value) {
+  return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
 function allAccessories() {
   const out = [];
   const layout = data.layout || {};
@@ -802,6 +812,112 @@ function accessoryText(accessory) {
     accessory.zone,
     ...(accessory.services || []).map(service => service.name),
   ].join(' ').toLowerCase();
+}
+function accessoryAliases(accessory) {
+  return uniq([
+    accessory.name,
+    accessory.configuredName,
+    accessory.providedName,
+    ...(accessory.services || []).map(service => service.name),
+  ]).filter(alias => normalizeName(alias).length >= 3);
+}
+function buildAliasIndex() {
+  const index = new Map();
+  for (const accessory of allAccessories()) {
+    for (const alias of accessoryAliases(accessory)) {
+      const normalized = normalizeName(alias);
+      if (!normalized) continue;
+      if (!index.has(normalized)) index.set(normalized, {alias, accessories: []});
+      index.get(normalized).accessories.push(accessory);
+    }
+  }
+  for (const [key, entry] of index) {
+    const uniqueIds = new Set(entry.accessories.map(accessory => accessory.id));
+    if (uniqueIds.size !== 1) index.delete(key);
+  }
+  return index;
+}
+function addUsage(usages, accessory, rule, role, via = '') {
+  const key = String(accessory.id);
+  if (!usages.has(key)) usages.set(key, []);
+  const duplicate = usages.get(key).some(item => item.ruleId === rule.id && item.role === role && item.via === via);
+  if (duplicate) return;
+  usages.get(key).push({
+    ruleId: rule.id,
+    name: rule.name,
+    enabled: rule.enabled,
+    role,
+    via,
+  });
+}
+function textHasAlias(text, alias) {
+  const haystack = ` ${normalizeName(text)} `;
+  const needle = normalizeName(alias);
+  if (!needle || needle.length < 4) return false;
+  return haystack.includes(` ${needle} `);
+}
+function buildAutomationUsage() {
+  const aliasIndex = buildAliasIndex();
+  const usages = new Map();
+  const addExact = (name, rule, role, via = '') => {
+    const match = aliasIndex.get(normalizeName(name));
+    if (!match) return;
+    addUsage(usages, match.accessories[0], rule, role, via || match.alias);
+  };
+  for (const rule of data.rules || []) {
+    for (const name of rule.events || []) addExact(name, rule, 'WHEN');
+    for (const name of rule.actions || []) addExact(name, rule, 'THEN');
+    for (const line of rule.if || []) {
+      for (const [normalized, match] of aliasIndex) {
+        if (!textHasAlias(line, normalized)) continue;
+        addUsage(usages, match.accessories[0], rule, 'IF', match.alias);
+      }
+    }
+    for (const scene of rule.sceneRefs || []) {
+      for (const action of scene.actions || []) addExact(action.target, rule, 'SCENE', scene.name);
+    }
+  }
+  return usages;
+}
+function usageSummary(usages) {
+  const active = new Set(usages.filter(item => item.enabled).map(item => item.ruleId)).size;
+  const inactive = new Set(usages.filter(item => !item.enabled).map(item => item.ruleId)).size;
+  const roles = uniq(usages.map(item => item.role));
+  return {active, inactive, roles};
+}
+let automationUsageCache = null;
+function automationUsage() {
+  if (!automationUsageCache) automationUsageCache = buildAutomationUsage();
+  return automationUsageCache;
+}
+function automationUsageBlock(accessory) {
+  const usage = automationUsage().get(String(accessory.id)) || [];
+  if (!usage.length) return '';
+  const summary = usageSummary(usage);
+  const query = accessory.name || usage[0].via || '';
+  const title = `${summary.active} active and ${summary.inactive} inactive decoded automation references`;
+  const accessoryName = normalizeName(accessory.name);
+  return `
+    <div class="usage-row" title="${esc(title)}">
+      ${summary.active ? `<button class="badge automation" data-automation-query="${esc(query)}">${summary.active} active</button>` : ''}
+      ${summary.inactive ? `<button class="badge automation inactive-only" data-automation-query="${esc(query)}">${summary.inactive} inactive</button>` : ''}
+      <span class="badge">${esc(summary.roles.join(' / '))}</span>
+    </div>
+    <details class="usage-list">
+      <summary>Automation references</summary>
+      <ul>${usage.map(item => `
+        <li>${esc(item.name)} <span class="badge ${item.enabled ? 'active' : 'inactive'}">${item.enabled ? 'Active' : 'Inactive'}</span> <span class="badge">${esc(item.role)}</span>${item.via && normalizeName(item.via) !== accessoryName ? ` <span class="badge">${esc(item.via)}</span>` : ''}</li>
+      `).join('')}</ul>
+    </details>
+  `;
+}
+function bindAutomationUsageLinks() {
+  els.detail.querySelectorAll('[data-automation-query]').forEach(btn => btn.addEventListener('click', () => {
+    currentTab = 'automations';
+    els.search.value = btn.dataset.automationQuery || '';
+    els.tabs.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item.dataset.tab === currentTab));
+    render();
+  }));
 }
 function manufacturers() {
   const groups = new Map();
@@ -1008,7 +1124,9 @@ function renderLayout() {
       </div>
     `).join('') || '<div class="card empty">No matching rooms or accessories.</div>'}
     ${roomsWithoutZone.length ? `<div class="section card"><h3>Rooms Without Zone</h3><div class="grid">${roomsWithoutZone.map(room => roomCard(room)).join('')}</div></div>` : ''}
+    <div class="footer-note">Automation markers are decoded references matched by unique accessory or service name. Ambiguous duplicate names are not marked.</div>
   `;
+  bindAutomationUsageLinks();
 }
 function renderManufacturers() {
   els.main.classList.add('single');
@@ -1110,6 +1228,7 @@ function roomCard(room) {
     <h4>${esc(room.name)}</h4>
     ${(room.accessories || []).length ? `<ul>${room.accessories.map(accessory => `
       <li><b>${esc(accessory.name)}</b>${accessory.manufacturer || accessory.model ? ` <span class="badge">${esc([accessory.manufacturer, accessory.model].filter(Boolean).join(' '))}</span>` : ''}
+      ${automationUsageBlock(accessory)}
       ${accessory.services?.length ? `<br><span class="empty">${esc(accessory.services.map(service => service.name).slice(0, 8).join(', '))}${accessory.services.length > 8 ? '...' : ''}</span>` : ''}</li>
     `).join('')}</ul>` : '<div class="empty">No accessories identified</div>'}
   </div>`;
