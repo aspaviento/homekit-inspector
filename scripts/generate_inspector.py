@@ -597,6 +597,7 @@ h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: 0; }
 .home-context { text-align: right; min-width: 0; }
 .home-context span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .home-name { display: block; color: var(--text); font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.snapshot-date { display: block; color: var(--muted); font-size: 11px; line-height: 1.25; margin-top: 2px; }
 .summary { display: grid; grid-template-columns: repeat(6, minmax(100px, 1fr)); gap: 10px; margin-bottom: 16px; }
 .metric { position: relative; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 11px 13px 10px; min-width: 0; box-shadow: 0 1px 2px rgba(23,32,51,.025); text-align: left; cursor: pointer; }
 .metric::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--metric-color, var(--accent)); }
@@ -692,6 +693,7 @@ code { background: #edf2f8; padding: 1px 4px; border-radius: 4px; }
   .home-context { max-width: 42%; }
   .home-context span { font-size: 9px; }
   .home-name { font-size: 12px; line-height: 1.25; }
+  .snapshot-date { font-size: 10px; }
   .summary { display: flex; gap: 7px; overflow-x: auto; margin: 0 -12px 8px; padding: 0 12px 2px; scrollbar-width: none; }
   .summary::-webkit-scrollbar, .tabs::-webkit-scrollbar { display: none; }
   .metric { flex: 0 0 92px; min-height: 48px; padding: 7px 9px 6px 11px; }
@@ -717,7 +719,7 @@ code { background: #edf2f8; padding: 1px 4px; border-radius: 4px; }
   <div class="wrap">
     <div class="title-row">
       <div class="brand"><span class="brand-mark">HK</span><h1>HomeKit Inspector</h1></div>
-      <div class="home-context"><span>Home</span><strong class="home-name" id="homeName"></strong></div>
+      <div class="home-context"><span>Home</span><strong class="home-name" id="homeName"></strong><time class="snapshot-date" id="snapshotDate"></time></div>
     </div>
     <div class="summary" id="summary"></div>
     <div class="nav-row">
@@ -758,6 +760,7 @@ let quickFilter = '';
 let filtersExpanded = false;
 const els = {
   homeName: document.getElementById('homeName'),
+  snapshotDate: document.getElementById('snapshotDate'),
   summary: document.getElementById('summary'),
   tabs: document.getElementById('tabs'),
   main: document.getElementById('main'),
@@ -1015,10 +1018,25 @@ function applySummaryAction(action) {
   if (action === 'unresolved') els.confidence.value = 'unresolved';
   render();
 }
+function formatSnapshotDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 function init() {
   applyConfiguredThemes();
   const homeName = data.metadata?.homeName || data.homeName || '';
   els.homeName.textContent = homeName || 'Not identified';
+  const extractionDate = data.metadata?.extractionDate || data.extractionDate || '';
+  els.snapshotDate.textContent = extractionDate ? `Captured ${formatSnapshotDate(extractionDate)}` : '';
+  if (extractionDate) els.snapshotDate.dateTime = extractionDate;
   els.summary.innerHTML = [
     ['Total', data.stats.total, 'total', 'total', 'Show all automations'],
     ['Active', data.stats.active, 'active', 'active', 'Show active automations'],
