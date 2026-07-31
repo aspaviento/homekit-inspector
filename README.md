@@ -112,7 +112,8 @@ local-output/homekit_inspector.html
 
 The HTML file is self-contained and can be opened directly in a browser. It
 embeds the extracted HomeKit data, so real-home reports belong in private local
-storage.
+storage. The inspector header shows the extraction timestamp from the source
+export, making it easier to tell when a static report was captured.
 
 To generate a demo from the synthetic example without reading a local HomeKit
 database:
@@ -230,7 +231,9 @@ curl http://raspberrypi.local:8099/health
 ```
 
 The server is intended for trusted LAN or VPN access only. Do not expose a real
-home report to the public internet.
+home report to the public internet. Because the served inspector is a static
+HTML report, refresh the exported JSON, regenerate the HTML, and copy it again
+when you want the LAN view to reflect a newer HomeKit capture.
 
 ## Private Overrides
 

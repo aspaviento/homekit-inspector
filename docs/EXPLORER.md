@@ -4,6 +4,10 @@
 `homed_extract.py` JSON export. The inspector is intended for private local
 review of a HomeKit installation.
 
+The header shows the Home name and, when the export contains `extractionDate`,
+the capture time for the static report. This date comes from the HomeKit JSON
+export, not from the browser load time or LAN server start time.
+
 ## Inputs
 
 Required:
@@ -56,7 +60,8 @@ python3 scripts/generate_inspector.py \
 
 The generated `homekit_inspector_data.json` has these main sections:
 
-- `metadata`: source and extraction metadata.
+- `metadata`: source and extraction metadata, including the export timestamp
+  shown in the inspector header when available.
 - `stats`: counts for automations and unresolved values.
 - `zones`: HomeKit zones from the database.
 - `layout`: zones, rooms, accessories, and services.
