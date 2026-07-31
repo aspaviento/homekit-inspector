@@ -211,8 +211,8 @@ enrichment whenever possible.
 The inspector is organized into dedicated tabs:
 
 - **Home Layout**: zones, rooms, accessories, and named services.
-- **Hubs & Bridges**: Home hubs, primary hub detection, bridges, and bridged
-  accessories.
+- **Hubs**: Home hubs, reachability, and inferred primary hub.
+- **Bridges**: bridge accessories and the bridged accessories they contribute.
 - **Context Sources**: optional Homebridge-derived platforms, helpers,
   webhooks, and semantic relations.
 - **Manufacturers**: accessories grouped by manufacturer.
@@ -256,7 +256,7 @@ main inspector tab:
 
 - [Overview](assets/homekit-inspector-overview.svg)
 - [Home Layout](assets/tab-home-layout.svg)
-- [Hubs & Bridges](assets/tab-hubs-bridges.svg)
+- [Hubs and Bridges](assets/tab-hubs-bridges.svg)
 - [Context Sources](assets/tab-context-sources.svg)
 - [Manufacturers](assets/tab-manufacturers.svg)
 - [Automations](assets/tab-automations.svg)

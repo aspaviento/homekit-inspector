@@ -598,10 +598,12 @@ h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: 0; }
 .home-context span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .home-name { display: block; color: var(--text); font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
 .summary { display: grid; grid-template-columns: repeat(6, minmax(100px, 1fr)); gap: 10px; margin-bottom: 16px; }
-.metric { position: relative; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 11px 13px 10px; min-width: 0; box-shadow: 0 1px 2px rgba(23,32,51,.025); }
+.metric { position: relative; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 11px 13px 10px; min-width: 0; box-shadow: 0 1px 2px rgba(23,32,51,.025); text-align: left; cursor: pointer; }
 .metric::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--metric-color, var(--accent)); }
 .metric b { display: block; font-size: 20px; line-height: 1.15; color: var(--metric-color, var(--text)); }
 .metric span { color: var(--muted); font-size: 11px; font-weight: 600; }
+.metric:hover { border-color: #8ab2ff; box-shadow: 0 0 0 3px rgba(37,99,235,.08); }
+.metric:focus-visible { outline: 3px solid rgba(37,99,235,.2); outline-offset: 2px; }
 .metric.total { --metric-color: var(--accent); }
 .metric.active { --metric-color: var(--good); }
 .metric.inactive { --metric-color: var(--bad); }
@@ -702,7 +704,8 @@ code { background: #edf2f8; padding: 1px 4px; border-radius: 4px; }
     <div class="nav-row">
       <div class="tabs" id="tabs">
         <button class="tab active" data-tab="layout">Home Layout</button>
-        <button class="tab" data-tab="infrastructure">Hubs & Bridges</button>
+        <button class="tab" data-tab="hubs">Hubs</button>
+        <button class="tab" data-tab="bridges">Bridges</button>
         <button class="tab" data-tab="context">Context Sources</button>
         <button class="tab" data-tab="manufacturers">Manufacturers</button>
         <button class="tab" data-tab="automations">Automations</button>
@@ -731,6 +734,7 @@ const UNASSIGNED_THEME = 'Unassigned';
 let currentTab = 'layout';
 let selectedSceneId = data.scenes[0]?.id;
 let selectedId = data.rules[0]?.id;
+let quickFilter = '';
 const els = {
   homeName: document.getElementById('homeName'),
   summary: document.getElementById('summary'),
@@ -962,24 +966,53 @@ function fillSelect(select, values) {
     select.appendChild(option);
   }
 }
+function setTab(tabName) {
+  currentTab = tabName;
+  els.tabs.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item.dataset.tab === currentTab));
+}
+function resetAutomationFilters() {
+  els.search.value = '';
+  els.status.value = '';
+  els.theme.value = '';
+  els.room.value = '';
+  els.confidence.value = '';
+  quickFilter = '';
+}
+function applySummaryAction(action) {
+  resetAutomationFilters();
+  if (action === 'scenes') {
+    setTab('scenes');
+    render();
+    return;
+  }
+  setTab('automations');
+  if (action === 'active') els.status.value = 'active';
+  if (action === 'inactive') els.status.value = 'inactive';
+  if (action === 'conditions') quickFilter = 'conditions';
+  if (action === 'unresolved') els.confidence.value = 'unresolved';
+  render();
+}
 function init() {
   applyConfiguredThemes();
   const homeName = data.metadata?.homeName || data.homeName || '';
   els.homeName.textContent = homeName || 'Not identified';
   els.summary.innerHTML = [
-    ['Total', data.stats.total, 'total'],
-    ['Active', data.stats.active, 'active'],
-    ['Inactive', data.stats.inactive, 'inactive'],
-    ['With IF', data.stats.withConditions, 'conditions'],
-    ['Unresolved', data.stats.unresolved, 'unresolved'],
-    ['Scenes', data.scenes.length, 'scenes'],
-  ].map(([label, value, kind]) => `<div class="metric ${kind}"><b>${value}</b><span>${label}</span></div>`).join('');
+    ['Total', data.stats.total, 'total', 'total', 'Show all automations'],
+    ['Active', data.stats.active, 'active', 'active', 'Show active automations'],
+    ['Inactive', data.stats.inactive, 'inactive', 'inactive', 'Show inactive automations'],
+    ['Conditional', data.stats.withConditions, 'conditions', 'conditions', 'Show automations with IF conditions'],
+    ['Unresolved', data.stats.unresolved, 'unresolved', 'unresolved', 'Show automations with unresolved decoded values'],
+    ['Scenes', data.scenes.length, 'scenes', 'scenes', 'Show scenes'],
+  ].map(([label, value, kind, action, title]) => `<button class="metric ${kind}" data-summary-action="${action}" title="${esc(title)}"><b>${value}</b><span>${label}</span></button>`).join('');
+  els.summary.querySelectorAll('[data-summary-action]').forEach(btn => btn.addEventListener('click', () => applySummaryAction(btn.dataset.summaryAction)));
   fillSelect(els.theme, uniq(data.rules.map(rule => rule.displayTheme)));
   fillSelect(els.room, uniq(data.rules.flatMap(rule => rule.rooms)));
-  for (const el of [els.search, els.status, els.theme, els.room, els.confidence]) el.addEventListener('input', render);
+  for (const el of [els.search, els.status, els.theme, els.room, els.confidence]) el.addEventListener('input', () => {
+    quickFilter = '';
+    render();
+  });
   els.tabs.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
-    currentTab = tab.dataset.tab;
-    els.tabs.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item.dataset.tab === currentTab));
+    setTab(tab.dataset.tab);
     render();
   }));
   render();
@@ -995,6 +1028,7 @@ function filteredRules() {
     if (els.confidence.value === 'unresolved' && !rule.hasUnresolvedValues) return false;
     if (els.confidence.value === 'review' && !rule.confidence.includes('review')) return false;
     if (els.confidence.value === 'auto' && rule.confidence !== 'auto') return false;
+    if (quickFilter === 'conditions' && !rule.hasConditions) return false;
     return true;
   }).sort((a, b) => a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}));
 }
@@ -1165,12 +1199,38 @@ function renderManufacturers() {
     }).join('') || '<div class="card empty">No matching manufacturers or accessories.</div>'}
   `;
 }
-function renderInfrastructure() {
+function renderHubs() {
   els.main.classList.add('single');
   document.querySelector('.sidebar').style.display = 'none';
   const q = els.search.value.trim().toLowerCase();
   const infra = data.infrastructure || {};
   const homeHubs = (infra.homeHubs || []).filter(hub => !q || hubText(hub).includes(q));
+  els.detail.innerHTML = `
+    <h2>Hubs</h2>
+    <div class="detail-top">
+      <span class="badge">${infra.stats?.homeHubs ?? 0} home hubs</span>
+      <span class="badge">${infra.stats?.reachableHomeHubs ?? 0} reachable</span>
+    </div>
+    <div class="grid">${homeHubs.map(hub => `
+      <div class="card">
+        <h4>${esc(hub.name)}</h4>
+        <p>
+          ${hub.primary ? '<span class="badge active">Primary</span>' : ''}
+          <span class="badge ${hub.reachable ? 'active' : 'inactive'}">${hub.reachable ? 'Reachable' : 'Not reachable'}</span>
+          ${hub.room ? `<span class="badge">${esc(hub.room)}</span>` : ''}
+        </p>
+        <p><b>Model:</b> ${esc([hub.manufacturer, hub.model].filter(Boolean).join(' ') || 'Unknown')}</p>
+        ${hub.residentName ? `<p class="empty">Resident name: ${esc(hub.residentName)}</p>` : ''}
+      </div>
+    `).join('') || '<div class="card empty">No matching home hubs.</div>'}</div>
+    <div class="footer-note">Home hubs are Apple resident devices that coordinate HomeKit automations and remote access.</div>
+  `;
+}
+function renderBridges() {
+  els.main.classList.add('single');
+  document.querySelector('.sidebar').style.display = 'none';
+  const q = els.search.value.trim().toLowerCase();
+  const infra = data.infrastructure || {};
   const bridges = (infra.bridges || []).map(bridge => {
     if (!q || bridgeText(bridge).includes(q)) return bridge;
     return {
@@ -1179,48 +1239,29 @@ function renderInfrastructure() {
     };
   }).filter(bridge => !q || bridgeText(bridge).includes(q) || bridge.accessories.length);
   els.detail.innerHTML = `
-    <h2>Hubs & Bridges</h2>
+    <h2>Bridges</h2>
     <div class="detail-top">
-      <span class="badge">${infra.stats?.homeHubs ?? 0} home hubs</span>
-      <span class="badge">${infra.stats?.reachableHomeHubs ?? 0} reachable</span>
       <span class="badge">${infra.stats?.bridges ?? 0} bridges</span>
       <span class="badge">${infra.stats?.bridgedAccessories ?? 0} bridged accessories</span>
     </div>
-    <div class="section card">
-      <h3>Home Hubs</h3>
-      <div class="grid">${homeHubs.map(hub => `
-        <div class="card">
-          <h4>${esc(hub.name)}</h4>
-          <p>
-            ${hub.primary ? '<span class="badge active">Primary</span>' : ''}
-            <span class="badge ${hub.reachable ? 'active' : 'inactive'}">${hub.reachable ? 'Reachable' : 'Not reachable'}</span>
-            ${hub.room ? `<span class="badge">${esc(hub.room)}</span>` : ''}
-          </p>
-          <p><b>Model:</b> ${esc([hub.manufacturer, hub.model].filter(Boolean).join(' ') || 'Unknown')}</p>
-          ${hub.residentName ? `<p class="empty">Resident name: ${esc(hub.residentName)}</p>` : ''}
+    ${bridges.map(bridge => `
+      <div class="section card">
+        <h3>${esc(bridge.name)}</h3>
+        <div class="detail-top">
+          <span class="badge">${bridge.accessories.length} accessories</span>
+          ${bridge.room ? `<span class="badge">${esc(bridge.room)}</span>` : ''}
+          <span class="badge">${esc([bridge.manufacturer, bridge.model].filter(Boolean).join(' ') || 'Unknown')}</span>
         </div>
-      `).join('') || '<div class="empty">No matching home hubs.</div>'}</div>
-    </div>
-    <div class="section card">
-      <h3>Bridges</h3>
-      ${bridges.map(bridge => `
-        <div class="section card">
-          <h4>${esc(bridge.name)}</h4>
-          <div class="detail-top">
-            <span class="badge">${bridge.accessories.length} accessories</span>
-            ${bridge.room ? `<span class="badge">${esc(bridge.room)}</span>` : ''}
-            <span class="badge">${esc([bridge.manufacturer, bridge.model].filter(Boolean).join(' ') || 'Unknown')}</span>
+        <div class="grid">${(bridge.accessories || []).map(accessory => `
+          <div class="card">
+            <h4>${esc(accessory.name)}</h4>
+            <p>${accessory.room ? `<span class="badge">${esc(accessory.room)}</span>` : ''}</p>
+            <p class="empty">${esc([accessory.manufacturer, accessory.model].filter(Boolean).join(' ') || 'Unknown')}</p>
           </div>
-          <div class="grid">${(bridge.accessories || []).map(accessory => `
-            <div class="card">
-              <h4>${esc(accessory.name)}</h4>
-              <p>${accessory.room ? `<span class="badge">${esc(accessory.room)}</span>` : ''}</p>
-              <p class="empty">${esc([accessory.manufacturer, accessory.model].filter(Boolean).join(' ') || 'Unknown')}</p>
-            </div>
-          `).join('')}</div>
-        </div>
-      `).join('') || '<div class="empty">No matching bridges.</div>'}
-    </div>
+        `).join('')}</div>
+      </div>
+    `).join('') || '<div class="card empty">No matching bridges.</div>'}
+    <div class="footer-note">Bridges are accessories that contribute other accessories into the HomeKit graph.</div>
   `;
 }
 function roomCard(room) {
@@ -1364,12 +1405,13 @@ function renderConfig() {
 }
 function render() {
   const sidebar = document.querySelector('.sidebar');
-  els.main.classList.toggle('single', currentTab === 'layout' || currentTab === 'infrastructure' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'config');
-  sidebar.style.display = currentTab === 'layout' || currentTab === 'infrastructure' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'config' ? 'none' : '';
+  els.main.classList.toggle('single', currentTab === 'layout' || currentTab === 'hubs' || currentTab === 'bridges' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'config');
+  sidebar.style.display = currentTab === 'layout' || currentTab === 'hubs' || currentTab === 'bridges' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'config' ? 'none' : '';
   els.search.style.display = '';
   els.automationFilters.classList.toggle('visible', currentTab === 'automations');
   if (currentTab === 'layout') return renderLayout();
-  if (currentTab === 'infrastructure') return renderInfrastructure();
+  if (currentTab === 'hubs') return renderHubs();
+  if (currentTab === 'bridges') return renderBridges();
   if (currentTab === 'context') return renderContextSources();
   if (currentTab === 'manufacturers') return renderManufacturers();
   if (currentTab === 'config') return renderConfig();

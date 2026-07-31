@@ -96,19 +96,22 @@ decoded accessory or service names in the generated inspector payload; duplicate
 or ambiguous names are not marked. Treat them as practical traceability aids,
 not as a full UUID-level dependency graph.
 
-### Hubs & Bridges
+### Hubs
 
 ![Hubs and Bridges tab](../assets/tab-hubs-bridges.svg)
 
-Shows Home hubs and bridge relationships found in HomeKit. Bridge mappings are
-derived from HomeKit's `ZHOSTACCESSORY` relationship.
+Shows Apple resident devices known to HomeKit, including reachability and the
+inferred primary hub when the local database exposes that relationship. Hubs
+are operational infrastructure for HomeKit automations and remote access.
 
-The Home hubs section shows Apple resident devices known to HomeKit, including
-reachability and the inferred primary hub when the local database exposes that
-relationship. The bridges section groups bridged accessories under the bridge
-that contributes them to HomeKit, which helps explain where accessories from
-Homebridge, Home Assistant bridges, Hue, Aqara, or similar integrations enter
-the HomeKit graph.
+### Bridges
+
+Shows bridge relationships found in HomeKit. Bridge mappings are derived from
+HomeKit's `ZHOSTACCESSORY` relationship.
+
+The Bridges view groups bridged accessories under the bridge that contributes
+them to HomeKit, which helps explain where accessories from Homebridge, Home
+Assistant bridges, Hue, Aqara, or similar integrations enter the HomeKit graph.
 
 ### Context Sources
 
