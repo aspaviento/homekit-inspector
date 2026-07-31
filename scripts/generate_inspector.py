@@ -629,11 +629,14 @@ main.wrap.single { display: block; }
 .sidebar, .content { min-width: 0; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 .list { overflow: auto; max-height: calc(100vh - 190px); }
+.list-entry { background: white; }
+.list-entry:not(:last-child) { border-bottom: 1px solid var(--line); }
 .item { position: relative; display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: white; padding: 12px 14px; cursor: pointer; }
 .item:last-child { border-bottom: 0; }
 .item:hover { background: var(--surface); }
 .item.active { background: var(--surface-blue); }
 .item.active::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--accent); }
+.list-entry .item { border-bottom: 0; }
 .item-title { font-weight: 650; margin-bottom: 4px; }
 .item-meta { display: flex; flex-wrap: wrap; gap: 5px; color: var(--muted); font-size: 12px; }
 .badge { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 600; }
@@ -663,6 +666,7 @@ main.wrap.single { display: block; }
 .section.card:has(> .grid), .section.card:has(> .section.card) { border: 0; padding: 0; background: transparent; box-shadow: none; }
 .section.card:has(> .grid) > h3, .section.card:has(> .section.card) > h3 { margin: 0 0 10px; color: var(--text); font-size: 15px; text-transform: none; }
 .section.card > .section.card { margin-top: 12px; }
+.inline-detail { border-top: 1px solid var(--line); background: #fff; }
 ul { margin: 0; padding-left: 18px; }
 li { margin: 4px 0; }
 .section { margin-top: 16px; }
@@ -682,6 +686,8 @@ code { background: #edf2f8; padding: 1px 4px; border-radius: 4px; }
   main.wrap { grid-template-columns: 1fr; }
   .list { max-height: 360px; }
   .columns { grid-template-columns: 1fr; }
+  main.wrap.automation-inline { gap: 0; }
+  main.wrap.automation-inline .sidebar { border-radius: 8px; overflow: hidden; }
 }
 @media (max-width: 560px) {
   header { position: static; }
@@ -764,6 +770,7 @@ const els = {
   summary: document.getElementById('summary'),
   tabs: document.getElementById('tabs'),
   main: document.getElementById('main'),
+  content: document.querySelector('.content'),
   search: document.getElementById('search'),
   status: document.getElementById('status'),
   theme: document.getElementById('theme'),
@@ -1077,9 +1084,14 @@ function filteredRules() {
     return true;
   }).sort((a, b) => a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}));
 }
+function isCompactAutomationLayout() {
+  return window.matchMedia('(max-width: 900px)').matches;
+}
 function renderList(rules) {
   if (!rules.some(rule => rule.id === selectedId)) selectedId = rules[0]?.id;
+  const inlineDetails = currentTab === 'automations' && isCompactAutomationLayout();
   els.list.innerHTML = rules.map(rule => `
+    <div class="list-entry">
     <button class="item ${rule.id === selectedId ? 'active' : ''}" data-id="${rule.id}">
       <div class="item-title">${esc(rule.name)}</div>
       <div class="item-meta">
@@ -1088,11 +1100,14 @@ function renderList(rules) {
         ${rule.hasUnresolvedValues ? '<span class="badge warn">Unresolved</span>' : ''}
       </div>
     </button>
+    ${inlineDetails && rule.id === selectedId ? `<div class="inline-detail detail">${automationDetailHtml(rule)}</div>` : ''}
+    </div>
   `).join('') || '<div class="detail empty">No matching automations.</div>';
   els.list.querySelectorAll('.item').forEach(btn => btn.addEventListener('click', () => {
     selectedId = Number(btn.dataset.id);
     render();
   }));
+  bindSceneButtons(els.list);
 }
 function listBlock(items) {
   return items.length ? `<ul>${items.map(item => `<li>${esc(item)}</li>`).join('')}</ul>` : '<div class="empty">None decoded</div>';
@@ -1103,12 +1118,8 @@ function sceneBlock(rule) {
     <p><button class="secondary" data-scene-id="${scene.id}">${esc(scene.name)}</button> <span class="badge">${scene.actions.length} actions</span></p>
   `).join('')}</div>`;
 }
-function renderDetail(rule) {
-  if (!rule) {
-    els.detail.innerHTML = '<div class="empty">No automation selected.</div>';
-    return;
-  }
-  els.detail.innerHTML = `
+function automationDetailHtml(rule) {
+  return `
     <h2>${esc(rule.name)}</h2>
     <div class="detail-top">
       <span class="badge ${rule.enabled ? 'active' : 'inactive'}">${rule.enabled ? 'Active' : 'Inactive'}</span>
@@ -1131,12 +1142,22 @@ function renderDetail(rule) {
     <div class="section card"><h3>Notes</h3>${listBlock(rule.notes)}</div>
     <div class="footer-note">Generated locally from HomeKit export. Keep this file private until names and topology are reviewed.</div>
   `;
-  els.detail.querySelectorAll('[data-scene-id]').forEach(btn => btn.addEventListener('click', () => {
+}
+function bindSceneButtons(root) {
+  root.querySelectorAll('[data-scene-id]').forEach(btn => btn.addEventListener('click', () => {
     selectedSceneId = Number(btn.dataset.sceneId);
     currentTab = 'scenes';
     els.tabs.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item.dataset.tab === currentTab));
     render();
   }));
+}
+function renderDetail(rule) {
+  if (!rule) {
+    els.detail.innerHTML = '<div class="empty">No automation selected.</div>';
+    return;
+  }
+  els.detail.innerHTML = automationDetailHtml(rule);
+  bindSceneButtons(els.detail);
 }
 function sceneText(scene) {
   return [scene.name, scene.type, ...(scene.actions || []).flatMap(action => [action.target, action.room, action.characteristic, action.value, action.rule])].join(' ').toLowerCase();
@@ -1451,7 +1472,9 @@ function renderConfig() {
 function render() {
   const sidebar = document.querySelector('.sidebar');
   els.main.classList.toggle('single', currentTab === 'layout' || currentTab === 'hubs' || currentTab === 'bridges' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'config');
+  els.main.classList.toggle('automation-inline', currentTab === 'automations' && isCompactAutomationLayout());
   sidebar.style.display = currentTab === 'layout' || currentTab === 'hubs' || currentTab === 'bridges' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'config' ? 'none' : '';
+  els.content.style.display = currentTab === 'automations' && isCompactAutomationLayout() ? 'none' : '';
   els.search.style.display = '';
   els.automationFilters.classList.toggle('visible', currentTab === 'automations');
   els.automationFilters.classList.toggle('open', currentTab === 'automations' && filtersExpanded);
@@ -1473,8 +1496,13 @@ function render() {
   }
   const rules = filteredRules();
   renderList(rules);
+  if (isCompactAutomationLayout()) {
+    els.detail.innerHTML = '';
+    return;
+  }
   renderDetail(rules.find(rule => rule.id === selectedId));
 }
+window.addEventListener('resize', render);
 init();
 </script>
 </body>
