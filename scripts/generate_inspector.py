@@ -686,8 +686,8 @@ code { background: #edf2f8; padding: 1px 4px; border-radius: 4px; }
   main.wrap { grid-template-columns: 1fr; }
   .list { max-height: 360px; }
   .columns { grid-template-columns: 1fr; }
-  main.wrap.automation-inline { gap: 0; }
-  main.wrap.automation-inline .sidebar { border-radius: 8px; overflow: hidden; }
+  main.wrap.inline-detail-mode { gap: 0; }
+  main.wrap.inline-detail-mode .sidebar { border-radius: 8px; overflow: hidden; }
 }
 @media (max-width: 560px) {
   header { position: static; }
@@ -1084,12 +1084,12 @@ function filteredRules() {
     return true;
   }).sort((a, b) => a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}));
 }
-function isCompactAutomationLayout() {
+function usesInlineDetail() {
   return window.matchMedia('(max-width: 900px)').matches;
 }
 function renderList(rules) {
   if (!rules.some(rule => rule.id === selectedId)) selectedId = rules[0]?.id;
-  const inlineDetails = currentTab === 'automations' && isCompactAutomationLayout();
+  const inlineDetails = currentTab === 'automations' && usesInlineDetail();
   els.list.innerHTML = rules.map(rule => `
     <div class="list-entry">
     <button class="item ${rule.id === selectedId ? 'active' : ''}" data-id="${rule.id}">
@@ -1168,23 +1168,23 @@ function filteredScenes() {
 }
 function renderSceneList(scenes) {
   if (!scenes.some(scene => scene.id === selectedSceneId)) selectedSceneId = scenes[0]?.id;
+  const inlineDetails = currentTab === 'scenes' && usesInlineDetail();
   els.list.innerHTML = scenes.map(scene => `
+    <div class="list-entry">
     <button class="item ${scene.id === selectedSceneId ? 'active' : ''}" data-id="${scene.id}">
       <div class="item-title">${esc(scene.name)}</div>
       <div class="item-meta"><span class="badge">${esc(scene.type)}</span><span class="badge">${scene.actions.length} actions</span></div>
     </button>
+    ${inlineDetails && scene.id === selectedSceneId ? `<div class="inline-detail detail">${sceneDetailHtml(scene)}</div>` : ''}
+    </div>
   `).join('') || '<div class="detail empty">No matching scenes.</div>';
   els.list.querySelectorAll('.item').forEach(btn => btn.addEventListener('click', () => {
     selectedSceneId = Number(btn.dataset.id);
     render();
   }));
 }
-function renderSceneDetail(scene) {
-  if (!scene) {
-    els.detail.innerHTML = '<div class="empty">No scene selected.</div>';
-    return;
-  }
-  els.detail.innerHTML = `
+function sceneDetailHtml(scene) {
+  return `
     <h2>${esc(scene.name)}</h2>
     <div class="detail-top"><span class="badge">${esc(scene.type)}</span><span class="badge">${scene.actions.length} actions</span></div>
     <div class="card"><h3>Actions</h3>${scene.actions.length ? `<ul>${scene.actions.map(action => `
@@ -1192,6 +1192,13 @@ function renderSceneDetail(scene) {
       ${action.room ? `<span class="badge">${esc(action.room)}</span>` : ''}</li>
     `).join('')}</ul>` : '<div class="empty">No actions exported</div>'}</div>
   `;
+}
+function renderSceneDetail(scene) {
+  if (!scene) {
+    els.detail.innerHTML = '<div class="empty">No scene selected.</div>';
+    return;
+  }
+  els.detail.innerHTML = sceneDetailHtml(scene);
 }
 function renderLayout() {
   els.main.classList.add('single');
@@ -1472,9 +1479,10 @@ function renderConfig() {
 function render() {
   const sidebar = document.querySelector('.sidebar');
   els.main.classList.toggle('single', currentTab === 'layout' || currentTab === 'hubs' || currentTab === 'bridges' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'config');
-  els.main.classList.toggle('automation-inline', currentTab === 'automations' && isCompactAutomationLayout());
+  const inlineDetailMode = (currentTab === 'automations' || currentTab === 'scenes') && usesInlineDetail();
+  els.main.classList.toggle('inline-detail-mode', inlineDetailMode);
   sidebar.style.display = currentTab === 'layout' || currentTab === 'hubs' || currentTab === 'bridges' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'config' ? 'none' : '';
-  els.content.style.display = currentTab === 'automations' && isCompactAutomationLayout() ? 'none' : '';
+  els.content.style.display = inlineDetailMode ? 'none' : '';
   els.search.style.display = '';
   els.automationFilters.classList.toggle('visible', currentTab === 'automations');
   els.automationFilters.classList.toggle('open', currentTab === 'automations' && filtersExpanded);
@@ -1491,12 +1499,16 @@ function render() {
   if (currentTab === 'scenes') {
     const scenes = filteredScenes();
     renderSceneList(scenes);
+    if (usesInlineDetail()) {
+      els.detail.innerHTML = '';
+      return;
+    }
     renderSceneDetail(scenes.find(scene => scene.id === selectedSceneId));
     return;
   }
   const rules = filteredRules();
   renderList(rules);
-  if (isCompactAutomationLayout()) {
+  if (usesInlineDetail()) {
     els.detail.innerHTML = '';
     return;
   }
