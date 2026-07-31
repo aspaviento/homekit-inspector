@@ -38,6 +38,13 @@ python3 scripts/homed_extract.py \
   -o local-output/homekit_homed_export.json
 ```
 
+## LAN Serving
+
+Serving `homekit_inspector.html` from a Raspberry Pi or another LAN host does
+not make the report less sensitive. Keep the served directory private, serve it
+only on a trusted LAN or VPN, and do not expose it through public DNS, port
+forwarding, or an unauthenticated internet-facing reverse proxy.
+
 ## Homebridge Context
 
 Homebridge configuration often contains credentials, webhook URLs, hostnames,

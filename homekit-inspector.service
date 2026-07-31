@@ -1,0 +1,26 @@
+[Unit]
+Description=HomeKit Inspector static LAN server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/opt/homekit-inspector
+Environment=PYTHONUNBUFFERED=1
+Environment=HOMEKIT_INSPECTOR_HOST=0.0.0.0
+Environment=HOMEKIT_INSPECTOR_PORT=8099
+Environment=HOMEKIT_INSPECTOR_ROOT=/var/lib/homekit-inspector
+Environment=HOMEKIT_INSPECTOR_INDEX=homekit_inspector.html
+ExecStart=/usr/bin/python3 /opt/homekit-inspector/scripts/serve_inspector.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/lib/homekit-inspector
+
+[Install]
+WantedBy=multi-user.target

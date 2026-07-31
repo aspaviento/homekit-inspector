@@ -16,8 +16,10 @@ The project provides:
   column numbers where possible.
 - Decoding for HomeKit events, actions, scenes, date components, media actions,
   Natural Lighting targets, and Eve/HomeKit predicate conditions.
-- A standalone HTML inspector with views for home layout, hubs and bridges,
+- A standalone HTML inspector with views for home layout, hubs, bridges,
   context sources, manufacturers, automations, scenes, and theme assignment.
+- An optional static LAN server for serving a generated inspector report from a
+  private host.
 - Optional Homebridge context enrichment that adds traceable relationships
   without replacing the raw HomeKit data.
 - Local-only theme and override files for private household-specific metadata.
@@ -189,6 +191,46 @@ python3 scripts/generate_inspector.py \
 
 Review the generated file before reusing it. Automation names, themes, room
 names, and device names are private.
+
+When the inspector is served from a LAN host, browser-edited theme assignments
+still use `localStorage` and are scoped to the exact browser origin, such as
+`http://homekit-inspector.local:8099`. To share a consistent configuration
+across devices, keep the canonical theme file private on the Mac, regenerate
+the HTML with `--theme-config`, and redeploy the generated HTML.
+
+## Optional LAN Server
+
+The generated HTML can be served on a private LAN host such as a Raspberry Pi.
+The included server is static and read-only: it serves the generated
+`homekit_inspector.html` plus a small `/health` endpoint. It does not extract
+HomeKit data and does not write theme changes back to disk.
+
+Install from a cloned checkout on the LAN host:
+
+```bash
+sudo ./install.sh \
+  --install-dir /opt/homekit-inspector \
+  --data-dir /var/lib/homekit-inspector \
+  --user pi \
+  --port 8099
+```
+
+Copy a private generated report into the data directory:
+
+```bash
+rsync -av local-output/homekit_inspector.html \
+  pi@raspberrypi.local:/var/lib/homekit-inspector/homekit_inspector.html
+```
+
+Start or restart the service:
+
+```bash
+sudo systemctl restart homekit-inspector.service
+curl http://raspberrypi.local:8099/health
+```
+
+The server is intended for trusted LAN or VPN access only. Do not expose a real
+home report to the public internet.
 
 ## Private Overrides
 
