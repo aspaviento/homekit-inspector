@@ -531,15 +531,16 @@ def _build_zone_lookup(cur: sqlite3.Cursor, rooms: dict[int, str]) -> dict[str, 
 def _build_accessory_lookup(
     cur: sqlite3.Cursor, rooms: dict[int, str]
 ) -> dict[int, dict]:
-    """Z_PK -> {name, manufacturer, model, uuid, room}."""
+    """Z_PK -> {name, providedName, manufacturer, model, uuid, room}."""
     lookup: dict[int, dict] = {}
     cur.execute(
-        "SELECT Z_PK, ZCONFIGUREDNAME, ZMANUFACTURER, ZMODEL, "
+        "SELECT Z_PK, ZCONFIGUREDNAME, ZPROVIDEDNAME, ZMANUFACTURER, ZMODEL, "
         "ZUNIQUEIDENTIFIER, ZROOM FROM ZMKFACCESSORY"
     )
-    for pk, name, mfr, model, uid, room_pk in cur.fetchall():
+    for pk, name, provided_name, mfr, model, uid, room_pk in cur.fetchall():
         lookup[pk] = {
             "name": name,
+            "providedName": provided_name,
             "manufacturer": mfr,
             "model": model,
             "uuid": uid,
@@ -563,7 +564,7 @@ def _build_service_lookup(
         lookup[pk] = {
             "name": configured_name or name,
             "providedName": provided_name,
-            "accessory": acc_info.get("name", ""),
+            "accessory": acc_info.get("name") or acc_info.get("providedName", ""),
             "modelId": str(uuid_mod.UUID(bytes=model_id)) if model_id else "",
             "room": acc_info.get("room", ""),
         }
@@ -771,11 +772,15 @@ def _extract_actions(
                 ad["format"] = ci.get("format", "")
             if act_acc:
                 ai = acc_names.get(act_acc, {})
-                ad["accessoryName"] = ai.get("name", "")
+                ad["accessoryName"] = ai.get("name") or ai.get("providedName", "")
                 ad["room"] = ai.get("room", "")
             if act_svc:
                 si = svc_names.get(act_svc, {})
-                ad["serviceName"] = si.get("name", "")
+                ad["serviceName"] = (
+                    si.get("name")
+                    or si.get("providedName")
+                    or si.get("accessory", "")
+                )
 
         actions.append(ad)
     return actions
