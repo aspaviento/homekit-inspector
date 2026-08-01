@@ -99,6 +99,9 @@ the accessory appears in `WHEN`, `IF`, `THEN`, or through a referenced scene.
 Clicking a marker switches to the Automations tab with the accessory name in
 the search box.
 
+When HomeKit exposes a bridge relationship, bridged accessories also show a
+Bridge marker. Clicking it switches to the Bridges tab filtered to that bridge.
+
 These markers are intentionally conservative. They are matched from unique
 decoded accessory or service names in the generated inspector payload; duplicate
 or ambiguous names are not marked. Treat them as practical traceability aids,
@@ -150,6 +153,10 @@ Shows accessories grouped by manufacturer, using the manufacturer and model
 values exposed in HomeKit. This is useful for auditing device families,
 spotting bridge-imported accessories, and understanding whether a group of
 automations depends heavily on a single vendor or integration.
+
+Accessory cards in this view use the same automation and bridge markers as the
+Home Layout view, so vendor-level review can still jump to the related
+Automations or Bridges context.
 
 ### Automations
 

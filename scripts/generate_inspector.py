@@ -734,6 +734,8 @@ main.wrap.single { display: block; }
 .badge.automation { color: var(--badge-automation-text); border-color: var(--badge-automation-border); background: var(--badge-automation-bg); cursor: pointer; }
 .badge.automation:hover { border-color: var(--focus); background: var(--badge-automation-hover-bg); }
 .badge.automation.inactive-only { color: var(--badge-inactive-only-text); border-color: var(--badge-inactive-only-border); background: var(--badge-inactive-only-bg); }
+.badge.bridge { color: var(--badge-automation-text); border-color: var(--badge-automation-border); background: var(--badge-automation-bg); cursor: pointer; }
+.badge.bridge:hover { border-color: var(--focus); background: var(--badge-automation-hover-bg); }
 .usage-row { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 4px; }
 .usage-list { margin-top: 5px; color: var(--muted); font-size: 12px; }
 .usage-list summary { cursor: pointer; font-weight: 650; }
@@ -1014,6 +1016,25 @@ function automationUsage() {
   if (!automationUsageCache) automationUsageCache = buildAutomationUsage();
   return automationUsageCache;
 }
+let bridgeIndexCache = null;
+function bridgeIndex() {
+  if (bridgeIndexCache) return bridgeIndexCache;
+  bridgeIndexCache = new Map();
+  for (const bridge of data.infrastructure?.bridges || []) {
+    for (const accessory of bridge.accessories || []) {
+      bridgeIndexCache.set(String(accessory.id), bridge);
+    }
+  }
+  return bridgeIndexCache;
+}
+function bridgeForAccessory(accessory) {
+  return bridgeIndex().get(String(accessory.id));
+}
+function bridgeBadge(accessory) {
+  const bridge = bridgeForAccessory(accessory);
+  if (!bridge) return '';
+  return `<button class="badge bridge" data-bridge-query="${esc(bridge.name)}" title="Show bridge">${esc(`Bridge: ${bridge.name}`)}</button>`;
+}
 function automationUsageBlock(accessory) {
   const usage = automationUsage().get(String(accessory.id)) || [];
   if (!usage.length) return '';
@@ -1043,6 +1064,14 @@ function bindAutomationUsageLinks() {
     render();
   }));
 }
+function bindBridgeLinks() {
+  els.detail.querySelectorAll('[data-bridge-query]').forEach(btn => btn.addEventListener('click', () => {
+    currentTab = 'bridges';
+    els.search.value = btn.dataset.bridgeQuery || '';
+    els.tabs.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item.dataset.tab === currentTab));
+    render();
+  }));
+}
 function accessoryCard(accessory, options = {}) {
   const showManufacturer = options.showManufacturer ?? false;
   return `
@@ -1051,6 +1080,7 @@ function accessoryCard(accessory, options = {}) {
       <p>
         <span class="badge">${esc(accessory.room)}</span>
         <span class="badge">${esc(accessory.zone)}</span>
+        ${bridgeBadge(accessory)}
       </p>
       ${showManufacturer && accessory.manufacturer ? `<p><b>Manufacturer:</b> ${esc(accessory.manufacturer)}</p>` : ''}
       ${accessory.model ? `<p><b>Model:</b> ${esc(accessory.model)}</p>` : ''}
@@ -1338,6 +1368,7 @@ function renderLayout() {
     <div class="footer-note">Automation markers are decoded references matched by unique accessory or service name. Ambiguous duplicate names are not marked.</div>
   `;
   bindAutomationUsageLinks();
+  bindBridgeLinks();
 }
 function renderManufacturers() {
   els.main.classList.add('single');
@@ -1369,6 +1400,7 @@ function renderManufacturers() {
     }).join('') || '<div class="card empty">No matching manufacturers or accessories.</div>'}
   `;
   bindAutomationUsageLinks();
+  bindBridgeLinks();
 }
 function renderHubs() {
   els.main.classList.add('single');
@@ -1439,7 +1471,7 @@ function roomCard(room) {
   return `<div class="card">
     <h4>${esc(room.name)}</h4>
     ${(room.accessories || []).length ? `<ul>${room.accessories.map(accessory => `
-      <li><b>${esc(accessory.name)}</b>${accessory.manufacturer || accessory.model ? ` <span class="badge">${esc([accessory.manufacturer, accessory.model].filter(Boolean).join(' '))}</span>` : ''}
+      <li><b>${esc(accessory.name)}</b>${accessory.manufacturer || accessory.model ? ` <span class="badge">${esc([accessory.manufacturer, accessory.model].filter(Boolean).join(' '))}</span>` : ''} ${bridgeBadge(accessory)}
       ${automationUsageBlock(accessory)}
       ${accessory.services?.length ? `<br><span class="empty">${esc(accessory.services.map(service => service.name).slice(0, 8).join(', '))}${accessory.services.length > 8 ? '...' : ''}</span>` : ''}</li>
     `).join('')}</ul>` : '<div class="empty">No accessories identified</div>'}
