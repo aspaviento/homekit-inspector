@@ -264,6 +264,17 @@ def display_accessory_name(name, manufacturer, model, uid, fallback_id):
     return name or " ".join(part for part in [manufacturer, model] if part) or uid or f"Accessory {fallback_id}"
 
 
+def matter_info(node_id, vendor_id, product_id):
+    if not node_id:
+        return {"isMatter": False}
+    return {
+        "isMatter": True,
+        "matterNodeId": node_id,
+        "matterVendorId": vendor_id or None,
+        "matterProductId": product_id or None,
+    }
+
+
 def load_home_layout(db_path, fallback_data):
     zones = [
         {
@@ -279,13 +290,26 @@ def load_home_layout(db_path, fallback_data):
     cur = conn.cursor()
     cur.execute(
         "SELECT acc.Z_PK, acc.ZCONFIGUREDNAME, acc.ZPROVIDEDNAME, "
-        "acc.ZMANUFACTURER, acc.ZMODEL, acc.ZUNIQUEIDENTIFIER, acc.ZROOM, r.ZNAME "
+        "acc.ZMANUFACTURER, acc.ZMODEL, acc.ZUNIQUEIDENTIFIER, acc.ZROOM, r.ZNAME, "
+        "acc.ZMATTERNODEID, acc.ZMATTERVENDORID, acc.ZMATTERPRODUCTID "
         "FROM ZMKFACCESSORY acc "
         "LEFT JOIN ZMKFROOM r ON r.Z_PK = acc.ZROOM "
         "ORDER BY r.ZNAME, acc.ZCONFIGUREDNAME, acc.ZMANUFACTURER, acc.ZMODEL"
     )
     accessories = {}
-    for pk, name, provided_name, manufacturer, model, uid, room_id, room in cur.fetchall():
+    for (
+        pk,
+        name,
+        provided_name,
+        manufacturer,
+        model,
+        uid,
+        room_id,
+        room,
+        matter_node_id,
+        matter_vendor_id,
+        matter_product_id,
+    ) in cur.fetchall():
         display = display_accessory_name(name or provided_name, manufacturer, model, uid, pk)
         room_name = room or (f"Unnamed HomeKit Room (id {room_id})" if room_id else "Unassigned")
         accessories[pk] = {
@@ -298,6 +322,7 @@ def load_home_layout(db_path, fallback_data):
             "uuid": uid or "",
             "room": room_name,
             "services": [],
+            **matter_info(matter_node_id, matter_vendor_id, matter_product_id),
         }
 
     cur.execute(
@@ -413,7 +438,8 @@ def load_infrastructure(db_path):
         "SELECT host.Z_PK, host.ZCONFIGUREDNAME, host.ZPROVIDEDNAME, "
         "host.ZMANUFACTURER, host.ZMODEL, host.ZUNIQUEIDENTIFIER, hr.ZNAME, "
         "child.Z_PK, child.ZCONFIGUREDNAME, child.ZPROVIDEDNAME, "
-        "child.ZMANUFACTURER, child.ZMODEL, child.ZUNIQUEIDENTIFIER, cr.ZNAME "
+        "child.ZMANUFACTURER, child.ZMODEL, child.ZUNIQUEIDENTIFIER, cr.ZNAME, "
+        "child.ZMATTERNODEID, child.ZMATTERVENDORID, child.ZMATTERPRODUCTID "
         "FROM ZMKFACCESSORY host "
         "JOIN ZMKFACCESSORY child ON child.ZHOSTACCESSORY = host.Z_PK "
         "LEFT JOIN ZMKFROOM hr ON hr.Z_PK = host.ZROOM "
@@ -438,6 +464,9 @@ def load_infrastructure(db_path):
         child_model,
         child_uid,
         child_room,
+        child_matter_node_id,
+        child_matter_vendor_id,
+        child_matter_product_id,
     ) in cur.fetchall():
         bridge = bridges_by_id.setdefault(
             host_id,
@@ -457,6 +486,7 @@ def load_infrastructure(db_path):
                 "manufacturer": child_manufacturer or "",
                 "model": child_model or "",
                 "room": child_room or "",
+                **matter_info(child_matter_node_id, child_matter_vendor_id, child_matter_product_id),
             }
         )
     conn.close()
@@ -736,6 +766,7 @@ main.wrap.single { display: block; }
 .badge.automation.inactive-only { color: var(--badge-inactive-only-text); border-color: var(--badge-inactive-only-border); background: var(--badge-inactive-only-bg); }
 .badge.bridge { color: var(--badge-automation-text); border-color: var(--badge-automation-border); background: var(--badge-automation-bg); cursor: pointer; }
 .badge.bridge:hover { border-color: var(--focus); background: var(--badge-automation-hover-bg); }
+.badge.matter { color: var(--badge-warn-text); border-color: var(--badge-warn-border); background: var(--badge-warn-bg); }
 .usage-row { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 4px; }
 .usage-list { margin-top: 5px; color: var(--muted); font-size: 12px; }
 .usage-list summary { cursor: pointer; font-weight: 650; }
@@ -945,6 +976,7 @@ function accessoryText(accessory) {
     accessory.model,
     accessory.room,
     accessory.zone,
+    accessory.isMatter ? 'Matter' : '',
     ...(accessory.services || []).map(service => service.name),
   ].join(' ').toLowerCase();
 }
@@ -1044,6 +1076,15 @@ function bridgeBadge(accessory) {
   if (!bridge) return '';
   return `<button class="badge bridge" data-bridge-query="${esc(bridge.name)}" title="Show bridge">${esc(`Bridge: ${bridge.name}`)}</button>`;
 }
+function matterBadge(accessory) {
+  if (!accessory.isMatter) return '';
+  const detail = [
+    accessory.matterNodeId ? `Node ${accessory.matterNodeId}` : '',
+    accessory.matterVendorId ? `Vendor ${accessory.matterVendorId}` : '',
+    accessory.matterProductId ? `Product ${accessory.matterProductId}` : '',
+  ].filter(Boolean).join(' / ');
+  return `<span class="badge matter" title="${esc(detail || 'Matter accessory')}">Matter</span>`;
+}
 function automationUsageBlock(accessory) {
   const usage = automationUsage().get(String(accessory.id)) || [];
   if (!usage.length) return '';
@@ -1089,6 +1130,7 @@ function accessoryCard(accessory, options = {}) {
       <p>
         <span class="badge">${esc(accessory.room)}</span>
         <span class="badge">${esc(accessory.zone)}</span>
+        ${matterBadge(accessory)}
         ${bridgeBadge(accessory)}
       </p>
       ${showManufacturer && accessory.manufacturer ? `<p><b>Manufacturer:</b> ${esc(accessory.manufacturer)}</p>` : ''}
@@ -1114,7 +1156,7 @@ function bridgeOwnText(bridge) {
   return searchableText([bridge.name, bridge.manufacturer, bridge.model, bridge.room]);
 }
 function bridgeAccessoryText(accessory) {
-  return searchableText([accessory.name, accessory.manufacturer, accessory.model, accessory.room]);
+  return searchableText([accessory.name, accessory.manufacturer, accessory.model, accessory.room, accessory.isMatter ? 'Matter' : '']);
 }
 function bridgeText(bridge) {
   return searchableText([
@@ -1122,7 +1164,7 @@ function bridgeText(bridge) {
     bridge.manufacturer,
     bridge.model,
     bridge.room,
-    ...(bridge.accessories || []).flatMap(accessory => [accessory.name, accessory.manufacturer, accessory.model, accessory.room]),
+    ...(bridge.accessories || []).flatMap(accessory => [accessory.name, accessory.manufacturer, accessory.model, accessory.room, accessory.isMatter ? 'Matter' : '']),
   ]);
 }
 function contextText(source) {
@@ -1473,7 +1515,7 @@ function renderBridges() {
         <div class="grid">${(bridge.accessories || []).map(accessory => `
           <div class="card">
             <h4>${esc(accessory.name)}</h4>
-            <p>${accessory.room ? `<span class="badge">${esc(accessory.room)}</span>` : ''}</p>
+            <p>${accessory.room ? `<span class="badge">${esc(accessory.room)}</span>` : ''} ${matterBadge(accessory)}</p>
             <p class="empty">${esc([accessory.manufacturer, accessory.model].filter(Boolean).join(' ') || 'Unknown')}</p>
           </div>
         `).join('')}</div>
