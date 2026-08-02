@@ -916,6 +916,15 @@ function zoneText(zone) {
 function normalizeName(value) {
   return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
+function normalizeSearch(value) {
+  return normalizeName(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+function searchQuery() {
+  return normalizeSearch(els.search.value);
+}
+function searchableText(values) {
+  return normalizeSearch(values.flat(Infinity).filter(Boolean).join(' '));
+}
 function allAccessories() {
   const out = [];
   const layout = data.layout || {};
@@ -1099,16 +1108,22 @@ function manufacturers() {
   return [...groups.values()].sort((a, b) => b.accessories.length - a.accessories.length || a.name.localeCompare(b.name));
 }
 function hubText(hub) {
-  return [hub.name, hub.residentName, hub.manufacturer, hub.model, hub.room, hub.primary ? 'primary' : '', hub.reachable ? 'reachable' : 'not reachable'].join(' ').toLowerCase();
+  return searchableText([hub.name, hub.residentName, hub.manufacturer, hub.model, hub.room, hub.primary ? 'primary' : '', hub.reachable ? 'reachable' : 'not reachable']);
+}
+function bridgeOwnText(bridge) {
+  return searchableText([bridge.name, bridge.manufacturer, bridge.model, bridge.room]);
+}
+function bridgeAccessoryText(accessory) {
+  return searchableText([accessory.name, accessory.manufacturer, accessory.model, accessory.room]);
 }
 function bridgeText(bridge) {
-  return [
+  return searchableText([
     bridge.name,
     bridge.manufacturer,
     bridge.model,
     bridge.room,
     ...(bridge.accessories || []).flatMap(accessory => [accessory.name, accessory.manufacturer, accessory.model, accessory.room]),
-  ].join(' ').toLowerCase();
+  ]);
 }
 function contextText(source) {
   return [
@@ -1405,7 +1420,7 @@ function renderManufacturers() {
 function renderHubs() {
   els.main.classList.add('single');
   document.querySelector('.sidebar').style.display = 'none';
-  const q = els.search.value.trim().toLowerCase();
+  const q = searchQuery();
   const infra = data.infrastructure || {};
   const homeHubs = (infra.homeHubs || []).filter(hub => !q || hubText(hub).includes(q));
   els.detail.innerHTML = `
@@ -1432,13 +1447,13 @@ function renderHubs() {
 function renderBridges() {
   els.main.classList.add('single');
   document.querySelector('.sidebar').style.display = 'none';
-  const q = els.search.value.trim().toLowerCase();
+  const q = searchQuery();
   const infra = data.infrastructure || {};
   const bridges = (infra.bridges || []).map(bridge => {
-    if (!q || bridgeText(bridge).includes(q)) return bridge;
+    if (!q || bridgeOwnText(bridge).includes(q)) return bridge;
     return {
       ...bridge,
-      accessories: (bridge.accessories || []).filter(accessory => [accessory.name, accessory.manufacturer, accessory.model, accessory.room].join(' ').toLowerCase().includes(q)),
+      accessories: (bridge.accessories || []).filter(accessory => bridgeAccessoryText(accessory).includes(q)),
     };
   }).filter(bridge => !q || bridgeText(bridge).includes(q) || bridge.accessories.length);
   els.detail.innerHTML = `
