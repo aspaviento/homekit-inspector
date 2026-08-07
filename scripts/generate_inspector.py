@@ -133,6 +133,7 @@ def row_to_rule(row, room_lookup):
     if has_unresolved:
         confidence_parts.append("unresolved-values")
     confidence = " / ".join(confidence_parts) or "auto"
+    automation_type = "Advanced" if row.get("hasConditions") else "Standard"
     return {
         "id": row["index"],
         "name": row["name"],
@@ -146,6 +147,7 @@ def row_to_rule(row, room_lookup):
         "rooms": rooms,
         "notes": [translate_rule(note) for note in row.get("notes") or []],
         "confidence": confidence,
+        "automationType": automation_type,
         "hasConditions": bool(row.get("hasConditions")),
         "hasUnresolvedValues": has_unresolved,
         "rawCounts": {
@@ -647,6 +649,12 @@ HTML_TEMPLATE = """<!doctype html>
   --badge-warn-text: #925200;
   --badge-warn-border: #edcf9f;
   --badge-warn-bg: #fff7e8;
+  --badge-standard-text: #175f69;
+  --badge-standard-border: #a6dbe3;
+  --badge-standard-bg: #e9f9fb;
+  --badge-advanced-text: #6b3f00;
+  --badge-advanced-border: #e7c27b;
+  --badge-advanced-bg: #fff4dc;
   --badge-automation-text: #1749b1;
   --badge-automation-border: #b8cffb;
   --badge-automation-bg: #edf4ff;
@@ -690,6 +698,12 @@ HTML_TEMPLATE = """<!doctype html>
     --badge-warn-text: #ffd38a;
     --badge-warn-border: #8b5a19;
     --badge-warn-bg: #2f2313;
+    --badge-standard-text: #8ee2ec;
+    --badge-standard-border: #2b7180;
+    --badge-standard-bg: #102d36;
+    --badge-advanced-text: #ffd489;
+    --badge-advanced-border: #90611f;
+    --badge-advanced-bg: #312412;
     --badge-automation-text: #b9d3ff;
     --badge-automation-border: #31578e;
     --badge-automation-bg: #152943;
@@ -761,6 +775,8 @@ main.wrap.single { display: block; }
 .badge.active { color: var(--badge-active-text); border-color: var(--badge-active-border); background: var(--badge-active-bg); }
 .badge.inactive { color: var(--badge-inactive-text); border-color: var(--badge-inactive-border); background: var(--badge-inactive-bg); }
 .badge.warn { color: var(--badge-warn-text); border-color: var(--badge-warn-border); background: var(--badge-warn-bg); }
+.badge.standard { color: var(--badge-standard-text); border-color: var(--badge-standard-border); background: var(--badge-standard-bg); }
+.badge.advanced { color: var(--badge-advanced-text); border-color: var(--badge-advanced-border); background: var(--badge-advanced-bg); }
 .badge.automation { color: var(--badge-automation-text); border-color: var(--badge-automation-border); background: var(--badge-automation-bg); cursor: pointer; }
 .badge.automation:hover { border-color: var(--focus); background: var(--badge-automation-hover-bg); }
 .badge.automation.inactive-only { color: var(--badge-inactive-only-text); border-color: var(--badge-inactive-only-border); background: var(--badge-inactive-only-bg); }
@@ -1287,6 +1303,7 @@ function renderList(rules) {
       <div class="item-title">${esc(rule.name)}</div>
       <div class="item-meta">
         <span class="badge ${rule.enabled ? 'active' : 'inactive'}">${rule.enabled ? 'Active' : 'Inactive'}</span>
+        <span class="badge ${rule.automationType === 'Advanced' ? 'advanced' : 'standard'}" title="${rule.automationType === 'Advanced' ? 'Uses advanced HomeKit conditions; Home app may show it partially.' : 'Standard HomeKit automation; manageable from the Home app.'}">${esc(rule.automationType)}</span>
         <span class="badge">${esc(rule.displayTheme)}</span>
         ${rule.hasUnresolvedValues ? '<span class="badge warn">Unresolved</span>' : ''}
       </div>
@@ -1314,6 +1331,7 @@ function automationDetailHtml(rule) {
     <h2>${esc(rule.name)}</h2>
     <div class="detail-top">
       <span class="badge ${rule.enabled ? 'active' : 'inactive'}">${rule.enabled ? 'Active' : 'Inactive'}</span>
+      <span class="badge ${rule.automationType === 'Advanced' ? 'advanced' : 'standard'}" title="${rule.automationType === 'Advanced' ? 'Uses advanced HomeKit conditions; Home app may show it partially.' : 'Standard HomeKit automation; manageable from the Home app.'}">${esc(rule.automationType)}</span>
       <span class="badge">${esc(rule.displayTheme)}</span>
       <span class="badge ${rule.hasUnresolvedValues ? 'warn' : ''}">${esc(rule.confidence)}</span>
       <span class="badge">${rule.rawCounts.events} events</span>
