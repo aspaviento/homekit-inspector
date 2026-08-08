@@ -133,7 +133,8 @@ def row_to_rule(row, room_lookup):
     if has_unresolved:
         confidence_parts.append("unresolved-values")
     confidence = " / ".join(confidence_parts) or "auto"
-    automation_type = "Advanced" if row.get("hasConditions") else "Standard"
+    has_compound_trigger = len(row.get("whenRules") or []) > 1
+    automation_type = "Advanced" if row.get("hasConditions") or has_compound_trigger else "Standard"
     return {
         "id": row["index"],
         "name": row["name"],
@@ -149,6 +150,7 @@ def row_to_rule(row, room_lookup):
         "confidence": confidence,
         "automationType": automation_type,
         "hasConditions": bool(row.get("hasConditions")),
+        "hasCompoundTrigger": has_compound_trigger,
         "hasUnresolvedValues": has_unresolved,
         "rawCounts": {
             "events": row.get("eventCount") or 0,
@@ -1294,6 +1296,12 @@ function filteredRules() {
 function usesInlineDetail() {
   return window.matchMedia('(max-width: 900px)').matches;
 }
+function automationTypeTitle(rule) {
+  if (rule.automationType !== 'Advanced') return 'Standard HomeKit automation; manageable from the Home app.';
+  if (rule.hasConditions && rule.hasCompoundTrigger) return 'Uses advanced HomeKit conditions and multiple triggers; Home app may show it partially.';
+  if (rule.hasCompoundTrigger) return 'Uses multiple triggers; Home app may not show or edit all triggers.';
+  return 'Uses advanced HomeKit conditions; Home app may show it partially.';
+}
 function renderList(rules) {
   if (!rules.some(rule => rule.id === selectedId)) selectedId = rules[0]?.id;
   const inlineDetails = currentTab === 'automations' && usesInlineDetail();
@@ -1303,7 +1311,7 @@ function renderList(rules) {
       <div class="item-title">${esc(rule.name)}</div>
       <div class="item-meta">
         <span class="badge ${rule.enabled ? 'active' : 'inactive'}">${rule.enabled ? 'Active' : 'Inactive'}</span>
-        <span class="badge ${rule.automationType === 'Advanced' ? 'advanced' : 'standard'}" title="${rule.automationType === 'Advanced' ? 'Uses advanced HomeKit conditions; Home app may show it partially.' : 'Standard HomeKit automation; manageable from the Home app.'}">${esc(rule.automationType)}</span>
+        <span class="badge ${rule.automationType === 'Advanced' ? 'advanced' : 'standard'}" title="${esc(automationTypeTitle(rule))}">${esc(rule.automationType)}</span>
         <span class="badge">${esc(rule.displayTheme)}</span>
         ${rule.hasUnresolvedValues ? '<span class="badge warn">Unresolved</span>' : ''}
       </div>
@@ -1331,7 +1339,7 @@ function automationDetailHtml(rule) {
     <h2>${esc(rule.name)}</h2>
     <div class="detail-top">
       <span class="badge ${rule.enabled ? 'active' : 'inactive'}">${rule.enabled ? 'Active' : 'Inactive'}</span>
-      <span class="badge ${rule.automationType === 'Advanced' ? 'advanced' : 'standard'}" title="${rule.automationType === 'Advanced' ? 'Uses advanced HomeKit conditions; Home app may show it partially.' : 'Standard HomeKit automation; manageable from the Home app.'}">${esc(rule.automationType)}</span>
+      <span class="badge ${rule.automationType === 'Advanced' ? 'advanced' : 'standard'}" title="${esc(automationTypeTitle(rule))}">${esc(rule.automationType)}</span>
       <span class="badge">${esc(rule.displayTheme)}</span>
       <span class="badge ${rule.hasUnresolvedValues ? 'warn' : ''}">${esc(rule.confidence)}</span>
       <span class="badge">${rule.rawCounts.events} events</span>
