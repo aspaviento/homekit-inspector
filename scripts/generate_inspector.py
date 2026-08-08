@@ -727,7 +727,8 @@ header { position: sticky; top: 0; z-index: 2; background: var(--header-bg); bor
 h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: 0; }
 .title-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
 .brand { display: flex; align-items: center; gap: 11px; }
-.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 750; box-shadow: 0 5px 12px rgba(37,99,235,.2); }
+.brand-mark { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; }
+.brand-mark svg { width: 38px; height: 38px; display: block; }
 .home-context { text-align: right; min-width: 0; }
 .home-context span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .home-name { display: block; color: var(--text); font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
@@ -746,7 +747,7 @@ h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: 0; }
 .metric.unresolved { --metric-color: var(--warn); }
 .metric.scenes { --metric-color: var(--cyan); }
 .nav-row { display: grid; grid-template-columns: minmax(0, auto) minmax(240px, 1fr); gap: 16px; align-items: center; }
-.filters { display: none; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.filters { display: none; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .filters.visible { display: grid; }
 .filter-toggle { display: none; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-raised); color: var(--text); padding: 9px 11px; font-weight: 650; cursor: pointer; }
 .tabs { display: flex; flex-wrap: nowrap; gap: 2px; padding: 3px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); overflow-x: auto; }
@@ -833,7 +834,7 @@ code { background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
   .wrap { padding: 10px 12px; }
   .title-row { align-items: center; gap: 10px; margin-bottom: 10px; }
   .brand { gap: 8px; min-width: 0; }
-  .brand-mark { width: 30px; height: 30px; border-radius: 7px; font-size: 12px; flex: 0 0 auto; }
+  .brand-mark, .brand-mark svg { width: 32px; height: 32px; }
   h1 { font-size: 19px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .home-context { max-width: 42%; }
   .home-context span { font-size: 9px; }
@@ -863,7 +864,24 @@ code { background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
 <header>
   <div class="wrap">
     <div class="title-row">
-      <div class="brand"><span class="brand-mark">HK</span><h1>HomeKit Inspector</h1></div>
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" role="img" focusable="false">
+            <defs>
+              <linearGradient id="inspectorHomeGradient" x1="10" y1="8" x2="50" y2="56" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#ffb547"/>
+                <stop offset="1" stop-color="#ff7a1a"/>
+              </linearGradient>
+            </defs>
+            <rect x="5" y="5" width="54" height="54" rx="13" fill="#fff3df"/>
+            <path d="M16 31 32 17l16 14v17a3 3 0 0 1-3 3H19a3 3 0 0 1-3-3V31Z" fill="url(#inspectorHomeGradient)"/>
+            <path d="M24 31.5 32 24l8 7.5V45H24V31.5Z" fill="#ffd986"/>
+            <circle cx="43" cy="43" r="9" fill="none" stroke="#2563eb" stroke-width="4"/>
+            <path d="m49 49 6 6" stroke="#2563eb" stroke-width="4" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <h1>HomeKit Inspector</h1>
+      </div>
       <div class="home-context"><span>Home</span><strong class="home-name" id="homeName"></strong><time class="snapshot-date" id="snapshotDate"></time></div>
     </div>
     <div class="summary" id="summary"></div>
@@ -885,6 +903,7 @@ code { background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
       <select id="status"><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
       <select id="theme"><option value="">All themes</option></select>
       <select id="room"><option value="">All rooms</option></select>
+      <select id="automationType"><option value="">Both types</option><option value="Advanced">Advanced</option><option value="Standard">Standard</option></select>
       <select id="confidence"><option value="">All confidence</option><option value="unresolved">Unresolved values</option><option value="review">Needs review</option><option value="auto">Auto</option></select>
     </div>
   </div>
@@ -914,6 +933,7 @@ const els = {
   status: document.getElementById('status'),
   theme: document.getElementById('theme'),
   room: document.getElementById('room'),
+  automationType: document.getElementById('automationType'),
   confidence: document.getElementById('confidence'),
   filterToggle: document.getElementById('filterToggle'),
   automationFilters: document.getElementById('automationFilters'),
@@ -1216,6 +1236,7 @@ function resetAutomationFilters() {
   els.status.value = '';
   els.theme.value = '';
   els.room.value = '';
+  els.automationType.value = '';
   els.confidence.value = '';
   quickFilter = '';
 }
@@ -1264,7 +1285,7 @@ function init() {
   els.summary.querySelectorAll('[data-summary-action]').forEach(btn => btn.addEventListener('click', () => applySummaryAction(btn.dataset.summaryAction)));
   fillSelect(els.theme, uniq(data.rules.map(rule => rule.displayTheme)));
   fillSelect(els.room, uniq(data.rules.flatMap(rule => rule.rooms)));
-  for (const el of [els.search, els.status, els.theme, els.room, els.confidence]) el.addEventListener('input', () => {
+  for (const el of [els.search, els.status, els.theme, els.room, els.automationType, els.confidence]) el.addEventListener('input', () => {
     quickFilter = '';
     render();
   });
@@ -1286,6 +1307,7 @@ function filteredRules() {
     if (els.status.value === 'inactive' && rule.enabled) return false;
     if (els.theme.value && rule.displayTheme !== els.theme.value) return false;
     if (els.room.value && !rule.rooms.includes(els.room.value)) return false;
+    if (els.automationType.value && rule.automationType !== els.automationType.value) return false;
     if (els.confidence.value === 'unresolved' && !rule.hasUnresolvedValues) return false;
     if (els.confidence.value === 'review' && !rule.confidence.includes('review')) return false;
     if (els.confidence.value === 'auto' && rule.confidence !== 'auto') return false;
@@ -1701,7 +1723,7 @@ function render() {
   els.automationFilters.classList.toggle('open', currentTab === 'automations' && filtersExpanded);
   els.filterToggle.classList.toggle('visible', currentTab === 'automations');
   els.filterToggle.setAttribute('aria-expanded', String(currentTab === 'automations' && filtersExpanded));
-  const hasFilter = Boolean(els.status.value || els.theme.value || els.room.value || els.confidence.value || quickFilter);
+  const hasFilter = Boolean(els.status.value || els.theme.value || els.room.value || els.automationType.value || els.confidence.value || quickFilter);
   els.filterToggle.textContent = filtersExpanded ? 'Hide' : (hasFilter ? 'Filters *' : 'Filters');
   if (currentTab === 'layout') return renderLayout();
   if (currentTab === 'hubs') return renderHubs();
