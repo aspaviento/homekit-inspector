@@ -54,11 +54,12 @@ This project is designed for inspection and documentation. It does not modify
 HomeKit.
 
 - SQLite is opened with `mode=ro`.
-- Do not write to `core.sqlite`, `core.sqlite-wal`, or `core.sqlite-shm`.
-- Do not restart or manipulate `homed`.
-- Treat every generated export and HTML report as sensitive household data.
-- Keep `local-output/`, raw HomeKit database copies, Homebridge configs, and
-  private overrides out of version control.
+- The extractor never writes to `core.sqlite`, `core.sqlite-wal`, or
+  `core.sqlite-shm`.
+- The tooling does not restart or manipulate `homed`.
+- Generated exports and HTML reports are treated as sensitive household data.
+- `local-output/`, raw HomeKit database copies, Homebridge configs, and
+  private overrides are kept out of version control.
 
 See [docs/PRIVACY.md](docs/PRIVACY.md) for the publishing checklist.
 See [CHANGELOG.md](CHANGELOG.md) for release notes.
@@ -231,10 +232,10 @@ sudo systemctl restart homekit-inspector.service
 curl http://raspberrypi.local:8099/health
 ```
 
-The server is intended for trusted LAN or VPN access only. Do not expose a real
-home report to the public internet. Because the served inspector is a static
-HTML report, refresh the exported JSON, regenerate the HTML, and copy it again
-when you want the LAN view to reflect a newer HomeKit capture.
+The server is intended for trusted LAN or VPN access only; real home reports
+are not public internet artifacts. Because the served inspector is a static
+HTML report, the LAN view reflects the exported JSON and regenerated HTML that
+were last copied to the server.
 
 ## Private Overrides
 
@@ -249,8 +250,8 @@ python3 scripts/generate_inspector.py \
   --output-dir local-output
 ```
 
-Use overrides sparingly. Prefer raw HomeKit extraction and context-source
-enrichment whenever possible.
+Overrides are intended for sparse local annotations. Raw HomeKit extraction and
+context-source enrichment remain the preferred sources whenever possible.
 
 ## Inspector Views
 

@@ -46,7 +46,7 @@ for CloudKit sync metadata and are not needed for extraction.
 |---|---|
 | macOS TCC protection | The `~/Library/HomeKit/` directory is protected by Transparency, Consent, and Control |
 | Full Disk Access | Grant via **System Settings > Privacy & Security > Full Disk Access** for Terminal (or your app) |
-| Read-only access | Always open with `?mode=ro` to avoid corrupting the live database |
+| Read-only access | Connections use `?mode=ro` to avoid corrupting the live database |
 
 ```python
 # Correct way to open the database (read-only)
@@ -104,7 +104,7 @@ references this table, enabling CoreData's single-table inheritance pattern.
 
 > **Note:** The Z_ENT values above were observed on a specific macOS installation.
 > They are assigned by CoreData during model creation and _may_ differ across
-> macOS versions or HomeKit schema migrations. Always verify with:
+> macOS versions or HomeKit schema migrations. Runtime verification uses:
 > ```sql
 > SELECT Z_ENT, Z_NAME FROM Z_PRIMARYKEY ORDER BY Z_ENT;
 > ```
@@ -346,7 +346,7 @@ managed object model, not the Z_ENT values from `Z_PRIMARYKEY`. They are
 stable within a given schema version but may change across CoreData model
 migrations.
 
-**Always verify column names at runtime:**
+**Runtime column-name verification:**
 ```sql
 PRAGMA table_info(Z_41TRIGGERS_);
 ```
@@ -566,8 +566,8 @@ SELECT ZACCESSORY1 FROM ZMKFACTION WHERE Z_ENT = 36;
 ```
 
 This is likely a CoreData model versioning artifact where a relationship was
-renamed or migrated, leaving the original column unused. **Always use
-`ZACCESSORY1`** for CharacteristicWriteAction rows.
+renamed or migrated, leaving the original column unused. CharacteristicWriteAction
+rows use `ZACCESSORY1`.
 
 ### Gotcha 2: Junction table naming is opaque
 
@@ -575,7 +575,7 @@ The junction table `Z_41TRIGGERS_` and its columns (`Z_41ACTIONSETS_`,
 `Z_135TRIGGERS_`) use CoreData's internal relationship IDs, not entity type
 IDs. You cannot predict these names from `Z_PRIMARYKEY` alone.
 
-**Always discover junction tables at runtime:**
+**Runtime junction-table discovery:**
 ```sql
 -- List all tables
 SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'Z_%';
@@ -597,22 +597,21 @@ within Shortcuts workflows must use **name matching**, not UUID resolution.
 
 ### Gotcha 4: UUIDs are not a universal join key
 
-Different HomeKit layers use different identifiers. Do not assume that UUIDs
-inside workflow payloads, CoreData model ids, and HomeKit unique identifiers
-share one namespace. Prefer explicit CoreData relationships first, then
-user-visible names as a reviewed fallback.
+Different HomeKit layers use different identifiers. UUIDs inside workflow
+payloads, CoreData model ids, and HomeKit unique identifiers do not share a
+single universal namespace. Explicit CoreData relationships are preferred first,
+with user-visible names as a reviewed fallback.
 
 ### Gotcha 5: Polymorphic tables
 
 `ZMKFACTION` and `ZMKFEVENT` are polymorphic -- they store multiple entity
-subtypes in a single table. Always filter by `Z_ENT` to get the correct
-subset, and be aware that columns relevant to one subtype will be NULL for
-other subtypes.
+subtypes in a single table. `Z_ENT` identifies the correct subset, and columns
+relevant to one subtype will be NULL for other subtypes.
 
 ### Gotcha 6: Read-only access is essential
 
-The homed daemon has the database open and actively writes to it. Always
-connect in read-only mode to prevent corruption or WAL conflicts:
+The homed daemon has the database open and actively writes to it. Read-only
+connections prevent corruption or WAL conflicts:
 
 ```python
 conn = sqlite3.connect(f'file:{path}?mode=ro', uri=True)

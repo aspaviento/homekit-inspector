@@ -2,9 +2,9 @@
 
 HomeKit exports describe a real home. They can reveal occupancy patterns,
 security logic, room layout, device inventory, bridge topology, and automation
-schedules. Treat generated files as sensitive by default.
+schedules. Generated files are sensitive by default.
 
-## Never Commit
+## Private Files
 
 - `local-output/`
 - `output/`
@@ -18,7 +18,9 @@ schedules. Treat generated files as sensitive by default.
 - private overrides from a real home
 - screenshots of the inspector from a real home
 
-## Safe To Commit
+These files are kept out of public commits.
+
+## Public Files
 
 - extractor code;
 - HTML generator code;
@@ -41,15 +43,15 @@ python3 scripts/homed_extract.py \
 ## LAN Serving
 
 Serving `homekit_inspector.html` from a Raspberry Pi or another LAN host does
-not make the report less sensitive. Keep the served directory private, serve it
-only on a trusted LAN or VPN, and do not expose it through public DNS, port
-forwarding, or an unauthenticated internet-facing reverse proxy.
+not make the report less sensitive. The served directory remains private, and
+the report is intended only for a trusted LAN or VPN rather than public DNS,
+port forwarding, or an unauthenticated internet-facing reverse proxy.
 
 ## Homebridge Context
 
 Homebridge configuration often contains credentials, webhook URLs, hostnames,
-serial numbers, plugin topology, and room/device naming conventions. Do not
-commit a real Homebridge config.
+serial numbers, plugin topology, and room/device naming conventions. Real
+Homebridge configs are private files.
 
 Documentation and tests can use a small synthetic file such as
 `examples/homebridge-context.example.json`.
@@ -59,16 +61,16 @@ Documentation and tests can use a small synthetic file such as
 Themes are editorial metadata. They may expose how a household thinks about
 security, presence simulation, sleep modes, access, or family routines.
 
-Use `examples/theme-config.example.json` as the public schema reference. Keep
-real assignments in `local-output/homekit_theme_config.json`.
+`examples/theme-config.example.json` is the public schema reference. Real
+assignments live in `local-output/homekit_theme_config.json`.
 
 ## Private Overrides
 
 Private overrides cover local facts that cannot be derived from HomeKit or a
 context source.
 
-Use `examples/private-overrides.example.json` as the public schema reference.
-Keep real overrides in `local-output/homekit_private_overrides.json`.
+`examples/private-overrides.example.json` is the public schema reference. Real
+overrides live in `local-output/homekit_private_overrides.json`.
 
 ## Pre-Publish Audit
 

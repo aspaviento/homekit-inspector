@@ -85,12 +85,12 @@ Shows the static HomeKit structure: zones, rooms, accessories, and services.
 Unnamed HomeKit rooms are labeled with their internal room id rather than being
 merged into a generic unassigned bucket.
 
-Use this tab to understand the physical and logical layout of the HomeKit home
-before reading automations. It shows which accessories belong to each room, how
-rooms are grouped into HomeKit zones, and which named services are exposed by
-each accessory. This is useful when a single physical device exposes several
-services, such as a camera with a microphone, speaker, motion sensor, or
-security system service.
+This tab provides the physical and logical layout of the HomeKit home before
+reading automations. It shows which accessories belong to each room, how rooms
+are grouped into HomeKit zones, and which named services are exposed by each
+accessory. This is useful when a single physical device exposes several services,
+such as a camera with a microphone, speaker, motion sensor, or security system
+service.
 
 Accessory cards also show automation participation markers when a decoded
 automation references that accessory or one of its uniquely named services. The
@@ -104,8 +104,8 @@ Bridge marker. Clicking it switches to the Bridges tab filtered to that bridge.
 
 These markers are intentionally conservative. They are matched from unique
 decoded accessory or service names in the generated inspector payload; duplicate
-or ambiguous names are not marked. Treat them as practical traceability aids,
-not as a full UUID-level dependency graph.
+or ambiguous names are not marked. They are practical traceability aids rather
+than a full UUID-level dependency graph.
 
 ### Hubs
 
@@ -198,10 +198,10 @@ types that need another decoder pass.
 Shows HomeKit scenes separately from automations. Automations can reference a
 scene, but scene details stay in the Scenes view to avoid duplicating actions.
 
-Use this tab to inspect what a scene actually changes. This is especially
-important when an automation's `THEN` section says only that it runs a scene:
-the automation explains when and why the scene runs, while the scene view
-explains which accessories and characteristics the scene changes.
+This tab shows what a scene actually changes. This is especially important when
+an automation's `THEN` section says only that it runs a scene: the automation
+explains when and why the scene runs, while the scene view explains which
+accessories and characteristics the scene changes.
 
 ### Theme Editor
 
@@ -210,7 +210,7 @@ explains which accessories and characteristics the scene changes.
 Themes are user editorial metadata. They are not extracted from HomeKit.
 
 Assignments are stored in browser `localStorage` or loaded from
-`--theme-config`. Use export/import from the UI to move assignments between
+`--theme-config`. The UI export/import controls move assignments between
 machines.
 
 This tab lets the user group automations into local themes such as security,
