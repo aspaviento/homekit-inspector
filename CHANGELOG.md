@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added decoded HomeKit service capability badges, starting with Doorbell services.
+
 ## 0.3.0 - 2026-08-08
 
 - Added the optional static LAN server and systemd install assets for serving a generated inspector report from a private host.

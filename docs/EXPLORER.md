@@ -92,6 +92,12 @@ accessory. This is useful when a single physical device exposes several services
 such as a camera with a microphone, speaker, motion sensor, or security system
 service.
 
+Accessory cards can also show decoded HomeKit service capabilities, such as
+Doorbell, when a service type carries useful semantics beyond its display name.
+Capability badges describe accessory capabilities only; automation markers
+remain separate and appear only when decoded automations reference the accessory
+or one of its uniquely named services.
+
 Accessory cards also show automation participation markers when a decoded
 automation references that accessory or one of its uniquely named services. The
 markers split active and inactive automation references and identify whether
@@ -155,8 +161,8 @@ spotting bridge-imported accessories, and understanding whether a group of
 automations depends heavily on a single vendor or integration.
 
 Accessory cards in this view use the same automation and bridge markers as the
-Home Layout view, so vendor-level review can still jump to the related
-Automations or Bridges context.
+Home Layout view, including decoded capability badges, so vendor-level review
+can still jump to the related Automations or Bridges context.
 
 ### Automations
 

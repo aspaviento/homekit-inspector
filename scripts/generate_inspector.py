@@ -48,6 +48,10 @@ REPORT_THEME_TO_EXPLORER_THEME = {
     reports.THEME_OTHER: "Other",
 }
 
+SERVICE_CAPABILITY_LABELS = {
+    "00000121-0000-1000-8000-0026BB765291": "Doorbell",
+}
+
 
 def load_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
@@ -279,6 +283,19 @@ def matter_info(node_id, vendor_id, product_id):
     }
 
 
+def homekit_uuid(value):
+    if not value:
+        return ""
+    raw = value.hex().upper()
+    if len(raw) != 32:
+        return raw
+    return f"{raw[:8]}-{raw[8:12]}-{raw[12:16]}-{raw[16:20]}-{raw[20:]}"
+
+
+def service_capability(service_type):
+    return SERVICE_CAPABILITY_LABELS.get((service_type or "").upper(), "")
+
+
 def load_home_layout(db_path, fallback_data):
     zones = [
         {
@@ -326,22 +343,34 @@ def load_home_layout(db_path, fallback_data):
             "uuid": uid or "",
             "room": room_name,
             "services": [],
+            "capabilities": [],
             **matter_info(matter_node_id, matter_vendor_id, matter_product_id),
         }
 
     cur.execute(
-        "SELECT s.Z_PK, s.ZEXPECTEDCONFIGUREDNAME, s.ZNAME, s.ZPROVIDEDNAME, s.ZACCESSORY "
+        "SELECT s.Z_PK, s.ZEXPECTEDCONFIGUREDNAME, s.ZNAME, s.ZPROVIDEDNAME, s.ZACCESSORY, s.ZSERVICETYPE "
         "FROM ZMKFSERVICE s "
         "ORDER BY s.ZEXPECTEDCONFIGUREDNAME, s.ZNAME, s.ZPROVIDEDNAME"
     )
-    for pk, configured, name, provided, acc_pk in cur.fetchall():
+    for pk, configured, name, provided, acc_pk, service_type_blob in cur.fetchall():
         accessory = accessories.get(acc_pk)
         if not accessory:
             continue
-        service_name = configured or name or provided
-        if not service_name:
+        service_type = homekit_uuid(service_type_blob)
+        capability = service_capability(service_type)
+        service_name = capability or configured or name or provided
+        if capability and capability not in accessory["capabilities"]:
+            accessory["capabilities"].append(capability)
+        if not service_name and not capability:
             continue
-        accessory["services"].append({"id": pk, "name": service_name})
+        accessory["services"].append(
+            {
+                "id": pk,
+                "name": service_name or capability,
+                "serviceType": service_type,
+                "capability": capability,
+            }
+        )
 
     conn.close()
 
@@ -362,6 +391,7 @@ def load_home_layout(db_path, fallback_data):
                 seen.add(key)
                 services.append(service)
             accessory["services"] = services
+            accessory["capabilities"].sort()
 
     zone_room_names = {room for zone in zones for room in zone["rooms"]}
     all_room_names = set(rooms) | zone_room_names
@@ -438,6 +468,13 @@ def load_infrastructure(db_path):
             }
         )
 
+    capabilities_by_accessory = {}
+    cur.execute("SELECT ZACCESSORY, ZSERVICETYPE FROM ZMKFSERVICE WHERE ZSERVICETYPE IS NOT NULL")
+    for accessory_id, service_type_blob in cur.fetchall():
+        capability = service_capability(homekit_uuid(service_type_blob))
+        if capability:
+            capabilities_by_accessory.setdefault(accessory_id, set()).add(capability)
+
     cur.execute(
         "SELECT host.Z_PK, host.ZCONFIGUREDNAME, host.ZPROVIDEDNAME, "
         "host.ZMANUFACTURER, host.ZMODEL, host.ZUNIQUEIDENTIFIER, hr.ZNAME, "
@@ -490,6 +527,7 @@ def load_infrastructure(db_path):
                 "manufacturer": child_manufacturer or "",
                 "model": child_model or "",
                 "room": child_room or "",
+                "capabilities": sorted(capabilities_by_accessory.get(child_id, set())),
                 **matter_info(child_matter_node_id, child_matter_vendor_id, child_matter_product_id),
             }
         )
@@ -786,6 +824,7 @@ main.wrap.single { display: block; }
 .badge.bridge { color: var(--badge-automation-text); border-color: var(--badge-automation-border); background: var(--badge-automation-bg); cursor: pointer; }
 .badge.bridge:hover { border-color: var(--focus); background: var(--badge-automation-hover-bg); }
 .badge.matter { color: var(--badge-warn-text); border-color: var(--badge-warn-border); background: var(--badge-warn-bg); }
+.badge.capability { color: var(--badge-standard-text); border-color: var(--badge-standard-border); background: var(--badge-standard-bg); }
 .usage-row { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 4px; }
 .usage-list { margin-top: 5px; color: var(--muted); font-size: 12px; }
 .usage-list summary { cursor: pointer; font-weight: 650; }
@@ -969,6 +1008,7 @@ function roomText(room) {
     accessory.name,
     accessory.manufacturer,
     accessory.model,
+    ...(accessory.capabilities || []),
     ...(accessory.services || []).map(service => service.name),
   ])].join(' ').toLowerCase();
 }
@@ -1015,6 +1055,7 @@ function accessoryText(accessory) {
     accessory.room,
     accessory.zone,
     accessory.isMatter ? 'Matter' : '',
+    ...(accessory.capabilities || []),
     ...(accessory.services || []).map(service => service.name),
   ].join(' ').toLowerCase();
 }
@@ -1123,6 +1164,11 @@ function matterBadge(accessory) {
   ].filter(Boolean).join(' / ');
   return `<span class="badge matter" title="${esc(detail || 'Matter accessory')}">Matter</span>`;
 }
+function capabilityBadges(accessory) {
+  return (accessory.capabilities || [])
+    .map(capability => `<span class="badge capability" title="${esc(`HomeKit service capability: ${capability}`)}">${esc(capability)}</span>`)
+    .join('');
+}
 function automationUsageBlock(accessory) {
   const usage = automationUsage().get(String(accessory.id)) || [];
   if (!usage.length) return '';
@@ -1169,6 +1215,7 @@ function accessoryCard(accessory, options = {}) {
         <span class="badge">${esc(accessory.room)}</span>
         <span class="badge">${esc(accessory.zone)}</span>
         ${matterBadge(accessory)}
+        ${capabilityBadges(accessory)}
         ${bridgeBadge(accessory)}
       </p>
       ${showManufacturer && accessory.manufacturer ? `<p><b>Manufacturer:</b> ${esc(accessory.manufacturer)}</p>` : ''}
@@ -1194,7 +1241,7 @@ function bridgeOwnText(bridge) {
   return searchableText([bridge.name, bridge.manufacturer, bridge.model, bridge.room]);
 }
 function bridgeAccessoryText(accessory) {
-  return searchableText([accessory.name, accessory.manufacturer, accessory.model, accessory.room, accessory.isMatter ? 'Matter' : '']);
+  return searchableText([accessory.name, accessory.manufacturer, accessory.model, accessory.room, accessory.isMatter ? 'Matter' : '', ...(accessory.capabilities || [])]);
 }
 function bridgeText(bridge) {
   return searchableText([
@@ -1202,7 +1249,7 @@ function bridgeText(bridge) {
     bridge.manufacturer,
     bridge.model,
     bridge.room,
-    ...(bridge.accessories || []).flatMap(accessory => [accessory.name, accessory.manufacturer, accessory.model, accessory.room, accessory.isMatter ? 'Matter' : '']),
+    ...(bridge.accessories || []).flatMap(accessory => [accessory.name, accessory.manufacturer, accessory.model, accessory.room, accessory.isMatter ? 'Matter' : '', ...(accessory.capabilities || [])]),
   ]);
 }
 function contextText(source) {
@@ -1563,7 +1610,7 @@ function renderBridges() {
         <div class="grid">${(bridge.accessories || []).map(accessory => `
           <div class="card">
             <h4>${esc(accessory.name)}</h4>
-            <p>${accessory.room ? `<span class="badge">${esc(accessory.room)}</span>` : ''} ${matterBadge(accessory)}</p>
+            <p>${accessory.room ? `<span class="badge">${esc(accessory.room)}</span>` : ''} ${matterBadge(accessory)} ${capabilityBadges(accessory)}</p>
             <p class="empty">${esc([accessory.manufacturer, accessory.model].filter(Boolean).join(' ') || 'Unknown')}</p>
           </div>
         `).join('')}</div>
@@ -1576,7 +1623,7 @@ function roomCard(room) {
   return `<div class="card">
     <h4>${esc(room.name)}</h4>
     ${(room.accessories || []).length ? `<ul>${room.accessories.map(accessory => `
-      <li><b>${esc(accessory.name)}</b>${accessory.manufacturer || accessory.model ? ` <span class="badge">${esc([accessory.manufacturer, accessory.model].filter(Boolean).join(' '))}</span>` : ''} ${bridgeBadge(accessory)}
+      <li><b>${esc(accessory.name)}</b>${accessory.manufacturer || accessory.model ? ` <span class="badge">${esc([accessory.manufacturer, accessory.model].filter(Boolean).join(' '))}</span>` : ''} ${matterBadge(accessory)} ${capabilityBadges(accessory)} ${bridgeBadge(accessory)}
       ${automationUsageBlock(accessory)}
       ${accessory.services?.length ? `<br><span class="empty">${esc(accessory.services.map(service => service.name).slice(0, 8).join(', '))}${accessory.services.length > 8 ? '...' : ''}</span>` : ''}</li>
     `).join('')}</ul>` : '<div class="empty">No accessories identified</div>'}
