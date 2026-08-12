@@ -49,7 +49,25 @@ REPORT_THEME_TO_EXPLORER_THEME = {
 }
 
 SERVICE_CAPABILITY_LABELS = {
+    "0000007E-0000-1000-8000-0026BB765291": "Security System",
+    "0000007F-0000-1000-8000-0026BB765291": "CO",
+    "00000080-0000-1000-8000-0026BB765291": "Contact",
+    "00000083-0000-1000-8000-0026BB765291": "Leak",
+    "00000085-0000-1000-8000-0026BB765291": "Motion",
+    "00000086-0000-1000-8000-0026BB765291": "Occupancy",
+    "00000087-0000-1000-8000-0026BB765291": "Smoke",
+    "00000089-0000-1000-8000-0026BB765291": "Button",
+    "0000008C-0000-1000-8000-0026BB765291": "Window Covering",
+    "00000097-0000-1000-8000-0026BB765291": "CO2",
+    "000000D0-0000-1000-8000-0026BB765291": "Valve",
+    "000000D8-0000-1000-8000-0026BB765291": "TV / Media",
+    "000000D9-0000-1000-8000-0026BB765291": "TV / Media",
+    "000000DA-0000-1000-8000-0026BB765291": "TV / Media",
+    "00000110-0000-1000-8000-0026BB765291": "Camera",
+    "00000112-0000-1000-8000-0026BB765291": "Microphone",
+    "00000113-0000-1000-8000-0026BB765291": "Speaker",
     "00000121-0000-1000-8000-0026BB765291": "Doorbell",
+    "00000221-0000-1000-8000-0026BB765291": "TV / Media",
 }
 
 
@@ -931,6 +949,7 @@ code { background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
         <button class="tab" data-tab="bridges">Bridges</button>
         <button class="tab" data-tab="context">Context Sources</button>
         <button class="tab" data-tab="manufacturers">Manufacturers</button>
+        <button class="tab" data-tab="capabilities">Capabilities</button>
         <button class="tab" data-tab="automations">Automations</button>
         <button class="tab" data-tab="scenes">Scenes</button>
         <button class="tab" data-tab="config">Theme Editor</button>
@@ -1233,6 +1252,19 @@ function manufacturers() {
     groups.get(name).accessories.push(accessory);
   }
   return [...groups.values()].sort((a, b) => b.accessories.length - a.accessories.length || a.name.localeCompare(b.name));
+}
+function capabilityGroups() {
+  const groups = new Map();
+  for (const accessory of allAccessories()) {
+    for (const capability of accessory.capabilities || []) {
+      if (!groups.has(capability)) groups.set(capability, {name: capability, accessories: []});
+      groups.get(capability).accessories.push(accessory);
+    }
+  }
+  return [...groups.values()].sort((a, b) => b.accessories.length - a.accessories.length || a.name.localeCompare(b.name));
+}
+function capabilityText(group) {
+  return searchableText([group.name, ...(group.accessories || []).map(accessoryText)]);
 }
 function hubText(hub) {
   return searchableText([hub.name, hub.residentName, hub.manufacturer, hub.model, hub.room, hub.primary ? 'primary' : '', hub.reachable ? 'reachable' : 'not reachable']);
@@ -1554,6 +1586,41 @@ function renderManufacturers() {
   bindAutomationUsageLinks();
   bindBridgeLinks();
 }
+function renderCapabilities() {
+  els.main.classList.add('single');
+  document.querySelector('.sidebar').style.display = 'none';
+  const q = searchQuery();
+  const groups = capabilityGroups().map(group => ({
+    ...group,
+    accessories: group.accessories.filter(accessory => !q || normalizeSearch(accessoryText(accessory)).includes(q) || normalizeSearch(group.name).includes(q)),
+  })).filter(group => group.accessories.length && (!q || capabilityText(group).includes(q)));
+  const totalAccessories = uniq(groups.flatMap(group => group.accessories.map(accessory => String(accessory.id)))).length;
+  const totalReferences = groups.reduce((sum, group) => sum + group.accessories.length, 0);
+  els.detail.innerHTML = `
+    <h2>Capabilities</h2>
+    <div class="detail-top">
+      <span class="badge">${groups.length} capabilities</span>
+      <span class="badge">${totalAccessories} accessories</span>
+      <span class="badge">${totalReferences} accessory references</span>
+    </div>
+    ${groups.map(group => {
+      const rooms = uniq(group.accessories.map(accessory => accessory.room));
+      const manufacturers = uniq(group.accessories.map(accessory => accessory.manufacturer || 'Unknown Manufacturer'));
+      return `<div class="section card">
+        <h3>${esc(group.name)}</h3>
+        <div class="detail-top">
+          <span class="badge">${group.accessories.length} accessories</span>
+          <span class="badge">${rooms.length} rooms</span>
+          <span class="badge">${manufacturers.length} manufacturers</span>
+        </div>
+        <div class="grid">${group.accessories.map(accessory => accessoryCard(accessory, {showManufacturer: true})).join('')}</div>
+      </div>`;
+    }).join('') || '<div class="card empty">No matching capabilities or accessories.</div>'}
+    <div class="footer-note">Capabilities are decoded from HomeKit service types and describe accessory semantics independently from automation usage.</div>
+  `;
+  bindAutomationUsageLinks();
+  bindBridgeLinks();
+}
 function renderHubs() {
   els.main.classList.add('single');
   document.querySelector('.sidebar').style.display = 'none';
@@ -1760,10 +1827,10 @@ function renderConfig() {
 }
 function render() {
   const sidebar = document.querySelector('.sidebar');
-  els.main.classList.toggle('single', currentTab === 'layout' || currentTab === 'hubs' || currentTab === 'bridges' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'config');
+  els.main.classList.toggle('single', currentTab === 'layout' || currentTab === 'hubs' || currentTab === 'bridges' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'capabilities' || currentTab === 'config');
   const inlineDetailMode = (currentTab === 'automations' || currentTab === 'scenes') && usesInlineDetail();
   els.main.classList.toggle('inline-detail-mode', inlineDetailMode);
-  sidebar.style.display = currentTab === 'layout' || currentTab === 'hubs' || currentTab === 'bridges' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'config' ? 'none' : '';
+  sidebar.style.display = currentTab === 'layout' || currentTab === 'hubs' || currentTab === 'bridges' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'capabilities' || currentTab === 'config' ? 'none' : '';
   els.content.style.display = inlineDetailMode ? 'none' : '';
   els.search.style.display = '';
   els.automationFilters.classList.toggle('visible', currentTab === 'automations');
@@ -1777,6 +1844,7 @@ function render() {
   if (currentTab === 'bridges') return renderBridges();
   if (currentTab === 'context') return renderContextSources();
   if (currentTab === 'manufacturers') return renderManufacturers();
+  if (currentTab === 'capabilities') return renderCapabilities();
   if (currentTab === 'config') return renderConfig();
   if (currentTab === 'scenes') {
     const scenes = filteredScenes();

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added decoded HomeKit service capability badges, starting with Doorbell services.
+- Added decoded HomeKit service capability badges and a Capabilities tab for grouping accessories by service type.
 
 ## 0.3.0 - 2026-08-08
 

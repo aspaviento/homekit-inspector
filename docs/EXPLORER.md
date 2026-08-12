@@ -164,6 +164,21 @@ Accessory cards in this view use the same automation and bridge markers as the
 Home Layout view, including decoded capability badges, so vendor-level review
 can still jump to the related Automations or Bridges context.
 
+### Capabilities
+
+Shows accessories grouped by decoded HomeKit service capability, such as
+Doorbell, Camera, Motion, Contact, Occupancy, Window Covering, Security System,
+or TV / Media when those service types are present in the HomeKit database.
+
+This view helps audit functional roles independently from rooms,
+manufacturers, bridge origin, and automation usage. The global search includes
+capability names, accessory names, rooms, manufacturers, models, and service
+names in this tab.
+
+Accessory cards in this view use the same automation and bridge markers as the
+Home Layout and Manufacturers views, so capability-level review can still jump
+to related Automations or Bridges context.
+
 ### Automations
 
 ![Automations tab](../assets/tab-automations.svg)
