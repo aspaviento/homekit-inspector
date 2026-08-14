@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Added decoded HomeKit service capability badges and a Capabilities tab for grouping accessories by service type.
+- Expanded decoded HomeKit service capabilities to include fans, lightbulbs, and switches.
+- Refined the summary ribbon into clickable high-level inventory and navigation metrics.
 
 ## 0.3.0 - 2026-08-08
 

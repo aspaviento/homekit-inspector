@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Capabilities tab example</title>
+  <desc id="desc">Synthetic HomeKit Inspector Capabilities tab grouped by decoded HomeKit service type.</desc>
+  <rect width="960" height="540" fill="#f4f7fb"/>
+  <style>
+    .title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}
+    .h{font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a;letter-spacing:.7px}
+    .t{font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}
+    .m{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a}
+    .n{font:700 32px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#2563eb}
+    .badge{font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#175f69}
+  </style>
+  <text x="34" y="44" class="title">Capabilities</text>
+  <text x="34" y="70" class="m">Accessory inventory grouped by decoded HomeKit service capability</text>
+  <g transform="translate(34 96)">
+    <rect width="94" height="22" rx="11" fill="#fff" stroke="#dce3ed"/><text x="12" y="15" class="m">8 capabilities</text>
+    <rect x="104" width="104" height="22" rx="11" fill="#fff" stroke="#dce3ed"/><text x="116" y="15" class="m">42 accessories</text>
+    <rect x="218" width="142" height="22" rx="11" fill="#fff" stroke="#dce3ed"/><text x="230" y="15" class="m">55 capability refs</text>
+  </g>
+  <g transform="translate(34 144)">
+    <rect width="270" height="300" rx="8" fill="#fff" stroke="#dce3ed"/><rect width="270" height="4" fill="#2563eb"/>
+    <text x="18" y="38" class="n">12</text><text x="78" y="38" class="t">Motion</text>
+    <text x="18" y="78" class="h">ACCESSORIES</text>
+    <rect x="18" y="96" width="220" height="56" rx="7" fill="#fff" stroke="#dce3ed"/>
+    <text x="32" y="122" class="t">Hall Motion</text>
+    <text x="32" y="142" class="m">Hallway - Eve Systems</text>
+    <rect x="18" y="164" width="220" height="56" rx="7" fill="#fff" stroke="#dce3ed"/>
+    <text x="32" y="190" class="t">Garden Camera</text>
+    <text x="32" y="210" class="m">Garden - Camera Bridge</text>
+  </g>
+  <g transform="translate(344 144)">
+    <rect width="270" height="300" rx="8" fill="#fff" stroke="#dce3ed"/><rect width="270" height="4" fill="#11834f"/>
+    <text x="18" y="38" class="n" style="fill:#11834f">9</text><text x="66" y="38" class="t">Window Covering</text>
+    <text x="18" y="78" class="h">ACCESSORIES</text>
+    <rect x="18" y="96" width="220" height="56" rx="7" fill="#fff" stroke="#dce3ed"/>
+    <text x="32" y="122" class="t">Kitchen Blind</text>
+    <text x="32" y="142" class="m">Kitchen - Home Assistant</text>
+    <rect x="18" y="164" width="220" height="56" rx="7" fill="#fff" stroke="#dce3ed"/>
+    <text x="32" y="190" class="t">Living Room Blind</text>
+    <text x="32" y="210" class="m">Living Room - Home Assistant</text>
+  </g>
+  <g transform="translate(654 144)">
+    <rect width="270" height="300" rx="8" fill="#fff" stroke="#dce3ed"/><rect width="270" height="4" fill="#6d5bd0"/>
+    <text x="18" y="38" class="n" style="fill:#6d5bd0">4</text><text x="66" y="38" class="t">Fan</text>
+    <text x="18" y="78" class="h">ACCESSORIES</text>
+    <rect x="18" y="96" width="220" height="56" rx="7" fill="#fff" stroke="#dce3ed"/>
+    <text x="32" y="122" class="t">Studio Ceiling Fan</text>
+    <text x="32" y="142" class="m">Studio - Broadlink</text>
+    <rect x="18" y="164" width="220" height="56" rx="7" fill="#fff" stroke="#dce3ed"/>
+    <text x="32" y="190" class="t">Bedroom Ceiling Fan</text>
+    <text x="32" y="210" class="m">Bedroom - Broadlink</text>
+  </g>
+  <g transform="translate(34 470)">
+    <rect width="72" height="22" rx="5" fill="#e9f9fb" stroke="#a6dbe3"/><text x="12" y="15" class="badge">Doorbell</text>
+    <rect x="84" width="62" height="22" rx="5" fill="#e9f9fb" stroke="#a6dbe3"/><text x="96" y="15" class="badge">Camera</text>
+    <rect x="158" width="58" height="22" rx="5" fill="#e9f9fb" stroke="#a6dbe3"/><text x="170" y="15" class="badge">Switch</text>
+    <rect x="228" width="78" height="22" rx="5" fill="#e9f9fb" stroke="#a6dbe3"/><text x="240" y="15" class="badge">Occupancy</text>
+  </g>
+</svg>

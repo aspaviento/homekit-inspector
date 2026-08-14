@@ -59,6 +59,10 @@ SERVICE_CAPABILITY_LABELS = {
     "00000089-0000-1000-8000-0026BB765291": "Button",
     "0000008C-0000-1000-8000-0026BB765291": "Window Covering",
     "00000097-0000-1000-8000-0026BB765291": "CO2",
+    "00000040-0000-1000-8000-0026BB765291": "Fan",
+    "00000043-0000-1000-8000-0026BB765291": "Lightbulb",
+    "00000049-0000-1000-8000-0026BB765291": "Switch",
+    "000000B7-0000-1000-8000-0026BB765291": "Fan",
     "000000D0-0000-1000-8000-0026BB765291": "Valve",
     "000000D8-0000-1000-8000-0026BB765291": "TV / Media",
     "000000D9-0000-1000-8000-0026BB765291": "TV / Media",
@@ -789,18 +793,19 @@ h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: 0; }
 .home-context span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .home-name { display: block; color: var(--text); font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
 .snapshot-date { display: block; color: var(--muted); font-size: 11px; line-height: 1.25; margin-top: 2px; }
-.summary { display: grid; grid-template-columns: repeat(6, minmax(100px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.summary { display: grid; grid-template-columns: repeat(7, minmax(96px, 1fr)); gap: 10px; margin-bottom: 16px; }
 .metric { position: relative; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 11px 13px 10px; min-width: 0; box-shadow: 0 1px 2px rgba(23,32,51,.025); text-align: left; cursor: pointer; }
 .metric::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--metric-color, var(--accent)); }
 .metric b { display: block; font-size: 20px; line-height: 1.15; color: var(--metric-color, var(--text)); }
 .metric span { color: var(--muted); font-size: 11px; font-weight: 600; }
 .metric:hover { border-color: var(--focus); box-shadow: 0 0 0 3px var(--focus-ring); }
 .metric:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
-.metric.total { --metric-color: var(--accent); }
-.metric.active { --metric-color: var(--good); }
-.metric.inactive { --metric-color: var(--bad); }
-.metric.conditions { --metric-color: var(--violet); }
-.metric.unresolved { --metric-color: var(--warn); }
+.metric.rooms { --metric-color: var(--accent); }
+.metric.accessories { --metric-color: var(--good); }
+.metric.hubs { --metric-color: var(--bad); }
+.metric.bridges { --metric-color: var(--violet); }
+.metric.manufacturers { --metric-color: var(--warn); }
+.metric.automations { --metric-color: var(--accent); }
 .metric.scenes { --metric-color: var(--cyan); }
 .nav-row { display: grid; grid-template-columns: minmax(0, auto) minmax(240px, 1fr); gap: 16px; align-items: center; }
 .filters { display: none; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -1322,6 +1327,11 @@ function resetAutomationFilters() {
 function applySummaryAction(action) {
   resetAutomationFilters();
   filtersExpanded = false;
+  if (['layout', 'hubs', 'bridges', 'manufacturers'].includes(action)) {
+    setTab(action);
+    render();
+    return;
+  }
   if (action === 'scenes') {
     setTab('scenes');
     render();
@@ -1354,11 +1364,12 @@ function init() {
   els.snapshotDate.textContent = extractionDate ? `Captured ${formatSnapshotDate(extractionDate)}` : '';
   if (extractionDate) els.snapshotDate.dateTime = extractionDate;
   els.summary.innerHTML = [
-    ['Total', data.stats.total, 'total', 'total', 'Show all automations'],
-    ['Active', data.stats.active, 'active', 'active', 'Show active automations'],
-    ['Inactive', data.stats.inactive, 'inactive', 'inactive', 'Show inactive automations'],
-    ['Conditional', data.stats.withConditions, 'conditions', 'conditions', 'Show automations with IF conditions'],
-    ['Unresolved', data.stats.unresolved, 'unresolved', 'unresolved', 'Show automations with unresolved decoded values'],
+    ['Rooms', data.layout?.stats?.rooms ?? 0, 'rooms', 'layout', 'Show Home Layout'],
+    ['Accessories', data.layout?.stats?.accessories ?? 0, 'accessories', 'layout', 'Show Home Layout'],
+    ['Hubs', data.infrastructure?.stats?.homeHubs ?? 0, 'hubs', 'hubs', 'Show Home hubs'],
+    ['Bridges', data.infrastructure?.stats?.bridges ?? 0, 'bridges', 'bridges', 'Show Bridges'],
+    ['Manufacturers', manufacturers().length, 'manufacturers', 'manufacturers', 'Show Manufacturers'],
+    ['Automations', data.stats.total, 'automations', 'total', 'Show all automations'],
     ['Scenes', data.scenes.length, 'scenes', 'scenes', 'Show scenes'],
   ].map(([label, value, kind, action, title]) => `<button class="metric ${kind}" data-summary-action="${action}" title="${esc(title)}"><b>${value}</b><span>${label}</span></button>`).join('');
   els.summary.querySelectorAll('[data-summary-action]').forEach(btn => btn.addEventListener('click', () => applySummaryAction(btn.dataset.summaryAction)));

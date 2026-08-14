@@ -33,55 +33,55 @@
 
   <g transform="translate(40 86)">
     <g>
-      <rect width="112" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
+      <rect width="186" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
+      <rect width="3" height="64" fill="#2563eb"/><text x="12" y="28" class="metricNumber" style="fill:#2563eb">12</text>
+      <text x="12" y="50" class="metricLabel">Rooms</text>
+    </g>
+    <g transform="translate(196 0)">
+      <rect width="186" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
+      <rect width="3" height="64" fill="#11834f"/><text x="12" y="28" class="metricNumber" style="fill:#11834f">64</text>
+      <text x="12" y="50" class="metricLabel">Accessories</text>
+    </g>
+    <g transform="translate(392 0)">
+      <rect width="186" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
+      <rect width="3" height="64" fill="#bd3e4a"/><text x="12" y="28" class="metricNumber" style="fill:#bd3e4a">5</text>
+      <text x="12" y="50" class="metricLabel">Hubs</text>
+    </g>
+    <g transform="translate(588 0)">
+      <rect width="186" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
+      <rect width="3" height="64" fill="#6d5bd0"/><text x="12" y="28" class="metricNumber" style="fill:#6d5bd0">8</text>
+      <text x="12" y="50" class="metricLabel">Bridges</text>
+    </g>
+    <g transform="translate(784 0)">
+      <rect width="186" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
+      <rect width="3" height="64" fill="#a65f00"/><text x="12" y="28" class="metricNumber" style="fill:#a65f00">11</text>
+      <text x="12" y="50" class="metricLabel">Manufacturers</text>
+    </g>
+    <g transform="translate(980 0)">
+      <rect width="186" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
       <rect width="3" height="64" fill="#2563eb"/><text x="12" y="28" class="metricNumber" style="fill:#2563eb">42</text>
-      <text x="12" y="50" class="metricLabel">Total</text>
+      <text x="12" y="50" class="metricLabel">Automations</text>
     </g>
-    <g transform="translate(124 0)">
-      <rect width="112" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
-      <rect width="3" height="64" fill="#11834f"/><text x="12" y="28" class="metricNumber" style="fill:#11834f">39</text>
-      <text x="12" y="50" class="metricLabel">Active</text>
-    </g>
-    <g transform="translate(248 0)">
-      <rect width="112" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
-      <rect width="3" height="64" fill="#bd3e4a"/><text x="12" y="28" class="metricNumber" style="fill:#bd3e4a">3</text>
-      <text x="12" y="50" class="metricLabel">Inactive</text>
-    </g>
-    <g transform="translate(372 0)">
-      <rect width="112" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
-      <rect width="3" height="64" fill="#6d5bd0"/><text x="12" y="28" class="metricNumber" style="fill:#6d5bd0">18</text>
-      <text x="12" y="50" class="metricLabel">With IF</text>
-    </g>
-    <g transform="translate(496 0)">
-      <rect width="112" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
-      <rect width="3" height="64" fill="#a65f00"/><text x="12" y="28" class="metricNumber" style="fill:#a65f00">4</text>
-      <text x="12" y="50" class="metricLabel">Unresolved</text>
-    </g>
-    <g transform="translate(620 0)">
-      <rect width="112" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
+    <g transform="translate(1176 0)">
+      <rect width="184" height="64" rx="7" fill="#fff" stroke="#dce3ed"/>
       <rect width="3" height="64" fill="#0891b2"/><text x="12" y="28" class="metricNumber" style="fill:#0891b2">16</text>
       <text x="12" y="50" class="metricLabel">Scenes</text>
     </g>
   </g>
 
   <g transform="translate(40 176)">
-    <rect x="0" y="0" width="920" height="38" rx="8" fill="#f8fafc" stroke="#dce3ed"/>
-    <rect x="3" y="3" width="117" height="32" rx="5" fill="#fff" stroke="#dce3ed"/>
-    <text x="20" y="25" class="text" fill="#1749b1">Home Layout</text>
-    <rect x="132" y="3" width="134" height="32" rx="5" fill="transparent"/>
-    <text x="148" y="25" class="text">Hubs &amp; Bridges</text>
-    <rect x="278" y="3" width="146" height="32" rx="5" fill="transparent"/>
-    <text x="294" y="25" class="text">Context Sources</text>
-    <rect x="436" y="3" width="128" height="32" rx="5" fill="transparent"/>
-    <text x="452" y="25" class="text">Manufacturers</text>
-    <rect x="576" y="3" width="116" height="32" rx="5" fill="transparent"/>
-    <text x="592" y="25" class="text">Automations</text>
-    <rect x="704" y="3" width="84" height="32" rx="5" fill="transparent"/>
-    <text x="720" y="25" class="text">Scenes</text>
-    <rect x="800" y="3" width="117" height="32" rx="5" fill="transparent"/>
-    <text x="816" y="25" class="text">Theme Editor</text>
-    <rect x="980" y="0" width="420" height="38" rx="6" fill="#fff" stroke="#cbd5e1"/>
-    <text x="996" y="25" class="muted">Search current view</text>
+    <rect x="0" y="0" width="980" height="38" rx="8" fill="#f8fafc" stroke="#dce3ed"/>
+    <rect x="3" y="3" width="113" height="32" rx="5" fill="#fff" stroke="#dce3ed"/>
+    <text x="16" y="25" class="text" fill="#1749b1">Home Layout</text>
+    <text x="132" y="25" class="text">Hubs</text>
+    <text x="196" y="25" class="text">Bridges</text>
+    <text x="282" y="25" class="text">Context Sources</text>
+    <text x="444" y="25" class="text">Manufacturers</text>
+    <text x="592" y="25" class="text">Capabilities</text>
+    <text x="722" y="25" class="text">Automations</text>
+    <text x="852" y="25" class="text">Scenes</text>
+    <rect x="1010" y="0" width="390" height="38" rx="6" fill="#fff" stroke="#cbd5e1"/>
+    <text x="1026" y="25" class="muted">Search current view</text>
   </g>
 
   <rect x="40" y="244" width="1360" height="596" rx="8" fill="#fff" stroke="#dce3ed"/>

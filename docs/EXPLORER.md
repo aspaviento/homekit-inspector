@@ -11,6 +11,10 @@ export, not from the browser load time or LAN server start time.
 The interface follows the browser or operating-system color scheme preference,
 using light or dark styling automatically.
 
+The summary ribbon provides clickable high-level counts for the main inspector
+sections: rooms, accessories, hubs, bridges, manufacturers, automations, and
+scenes.
+
 ## Inputs
 
 Required:
@@ -166,9 +170,12 @@ can still jump to the related Automations or Bridges context.
 
 ### Capabilities
 
+![Capabilities tab](../assets/tab-capabilities.svg)
+
 Shows accessories grouped by decoded HomeKit service capability, such as
 Doorbell, Camera, Motion, Contact, Occupancy, Window Covering, Security System,
-or TV / Media when those service types are present in the HomeKit database.
+Fan, Lightbulb, Switch, or TV / Media when those service types are present in
+the HomeKit database.
 
 This view helps audit functional roles independently from rooms,
 manufacturers, bridge origin, and automation usage. The global search includes
