@@ -811,6 +811,7 @@ h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: 0; }
 .filters { display: none; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .filters.visible { display: grid; }
 .filter-toggle { display: none; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-raised); color: var(--text); padding: 9px 11px; font-weight: 650; cursor: pointer; }
+.filter-clear { width: 100%; min-height: 39px; }
 .tabs { display: flex; flex-wrap: nowrap; gap: 2px; padding: 3px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); overflow-x: auto; }
 .tab { border: 0; border-radius: 5px; background: transparent; color: var(--muted); padding: 8px 10px; font-weight: 600; cursor: pointer; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
 .tab:hover { color: var(--text); background: var(--surface-raised); }
@@ -962,12 +963,47 @@ code { background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
       <input class="global-search" id="search" type="search" placeholder="Search current view">
       <button class="filter-toggle" id="filterToggle" type="button" aria-expanded="false">Filters</button>
     </div>
-    <div class="filters" id="automationFilters">
+    <div class="filters" id="layoutFilters" data-filter-tab="layout">
+      <select id="layoutZone"><option value="">All zones</option></select>
+      <select id="layoutRoom"><option value="">All rooms</option></select>
+      <select id="layoutCapability"><option value="">All capabilities</option></select>
+      <button class="secondary filter-clear" type="button" data-clear-filters="layout">Clear filters</button>
+    </div>
+    <div class="filters" id="bridgeFilters" data-filter-tab="bridges">
+      <select id="bridgeName"><option value="">All bridges</option></select>
+      <select id="bridgeRoom"><option value="">All accessory rooms</option></select>
+      <select id="bridgeCapability"><option value="">All capabilities</option></select>
+      <button class="secondary filter-clear" type="button" data-clear-filters="bridges">Clear filters</button>
+    </div>
+    <div class="filters" id="manufacturerFilters" data-filter-tab="manufacturers">
+      <select id="manufacturerName"><option value="">All manufacturers</option></select>
+      <select id="manufacturerRoom"><option value="">All rooms</option></select>
+      <select id="manufacturerCapability"><option value="">All capabilities</option></select>
+      <button class="secondary filter-clear" type="button" data-clear-filters="manufacturers">Clear filters</button>
+    </div>
+    <div class="filters" id="capabilityFilters" data-filter-tab="capabilities">
+      <select id="capabilityName"><option value="">All capabilities</option></select>
+      <select id="capabilityRoom"><option value="">All rooms</option></select>
+      <select id="capabilityManufacturer"><option value="">All manufacturers</option></select>
+      <button class="secondary filter-clear" type="button" data-clear-filters="capabilities">Clear filters</button>
+    </div>
+    <div class="filters" id="automationFilters" data-filter-tab="automations">
       <select id="status"><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
       <select id="theme"><option value="">All themes</option></select>
       <select id="room"><option value="">All rooms</option></select>
       <select id="automationType"><option value="">Both types</option><option value="Advanced">Advanced</option><option value="Standard">Standard</option></select>
       <select id="confidence"><option value="">All confidence</option><option value="unresolved">Unresolved values</option><option value="review">Needs review</option><option value="auto">Auto</option></select>
+      <button class="secondary filter-clear" type="button" data-clear-filters="automations">Clear filters</button>
+    </div>
+    <div class="filters" id="sceneFilters" data-filter-tab="scenes">
+      <select id="sceneRoom"><option value="">All action rooms</option></select>
+      <select id="sceneCharacteristic"><option value="">All characteristics</option></select>
+      <button class="secondary filter-clear" type="button" data-clear-filters="scenes">Clear filters</button>
+    </div>
+    <div class="filters" id="configFilters" data-filter-tab="config">
+      <select id="configTheme"><option value="">All themes</option></select>
+      <select id="configAssignment"><option value="">Any assignment</option><option value="assigned">Assigned</option><option value="unassigned">Unassigned</option></select>
+      <button class="secondary filter-clear" type="button" data-clear-filters="config">Clear filters</button>
     </div>
   </div>
 </header>
@@ -993,13 +1029,29 @@ const els = {
   main: document.getElementById('main'),
   content: document.querySelector('.content'),
   search: document.getElementById('search'),
+  layoutZone: document.getElementById('layoutZone'),
+  layoutRoom: document.getElementById('layoutRoom'),
+  layoutCapability: document.getElementById('layoutCapability'),
+  bridgeName: document.getElementById('bridgeName'),
+  bridgeRoom: document.getElementById('bridgeRoom'),
+  bridgeCapability: document.getElementById('bridgeCapability'),
+  manufacturerName: document.getElementById('manufacturerName'),
+  manufacturerRoom: document.getElementById('manufacturerRoom'),
+  manufacturerCapability: document.getElementById('manufacturerCapability'),
+  capabilityName: document.getElementById('capabilityName'),
+  capabilityRoom: document.getElementById('capabilityRoom'),
+  capabilityManufacturer: document.getElementById('capabilityManufacturer'),
   status: document.getElementById('status'),
   theme: document.getElementById('theme'),
   room: document.getElementById('room'),
   automationType: document.getElementById('automationType'),
   confidence: document.getElementById('confidence'),
+  sceneRoom: document.getElementById('sceneRoom'),
+  sceneCharacteristic: document.getElementById('sceneCharacteristic'),
+  configTheme: document.getElementById('configTheme'),
+  configAssignment: document.getElementById('configAssignment'),
   filterToggle: document.getElementById('filterToggle'),
-  automationFilters: document.getElementById('automationFilters'),
+  filterGroups: [...document.querySelectorAll('[data-filter-tab]')],
   list: document.getElementById('list'),
   detail: document.getElementById('detail'),
 };
@@ -1026,25 +1078,6 @@ function applyConfiguredThemes() {
 }
 function textOf(rule) {
   return [rule.name, rule.displayTheme, ...rule.when, ...rule.if, ...rule.then, ...rule.events, ...rule.actions, ...rule.rooms, ...rule.notes].join(' ').toLowerCase();
-}
-function roomText(room) {
-  return [room.name, ...(room.accessories || []).flatMap(accessory => [
-    accessory.name,
-    accessory.manufacturer,
-    accessory.model,
-    ...(accessory.capabilities || []),
-    ...(accessory.services || []).map(service => service.name),
-  ])].join(' ').toLowerCase();
-}
-function filterRoom(room, q) {
-  if (!q || room.name.toLowerCase().includes(q)) return room;
-  return {
-    ...room,
-    accessories: (room.accessories || []).filter(accessory => accessoryText(accessory).includes(q)),
-  };
-}
-function zoneText(zone) {
-  return [zone.name, ...(zone.rooms || []).map(roomText)].join(' ').toLowerCase();
 }
 function normalizeName(value) {
   return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -1082,6 +1115,12 @@ function accessoryText(accessory) {
     ...(accessory.capabilities || []),
     ...(accessory.services || []).map(service => service.name),
   ].join(' ').toLowerCase();
+}
+function accessoryMatchesFilters(accessory, {room = '', capability = '', manufacturer = ''} = {}) {
+  if (room && accessory.room !== room) return false;
+  if (capability && !(accessory.capabilities || []).includes(capability)) return false;
+  if (manufacturer && (accessory.manufacturer || 'Unknown Manufacturer') !== manufacturer) return false;
+  return true;
 }
 function accessoryAliases(accessory) {
   return uniq([
@@ -1216,17 +1255,18 @@ function automationUsageBlock(accessory) {
 }
 function bindAutomationUsageLinks() {
   els.detail.querySelectorAll('[data-automation-query]').forEach(btn => btn.addEventListener('click', () => {
-    currentTab = 'automations';
+    clearViewFilters('automations');
+    setTab('automations');
     els.search.value = btn.dataset.automationQuery || '';
-    els.tabs.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item.dataset.tab === currentTab));
     render();
   }));
 }
 function bindBridgeLinks() {
   els.detail.querySelectorAll('[data-bridge-query]').forEach(btn => btn.addEventListener('click', () => {
-    currentTab = 'bridges';
-    els.search.value = btn.dataset.bridgeQuery || '';
-    els.tabs.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item.dataset.tab === currentTab));
+    clearViewFilters('bridges');
+    setTab('bridges');
+    els.bridgeName.value = btn.dataset.bridgeQuery || '';
+    els.search.value = '';
     render();
   }));
 }
@@ -1268,9 +1308,6 @@ function capabilityGroups() {
   }
   return [...groups.values()].sort((a, b) => b.accessories.length - a.accessories.length || a.name.localeCompare(b.name));
 }
-function capabilityText(group) {
-  return searchableText([group.name, ...(group.accessories || []).map(accessoryText)]);
-}
 function hubText(hub) {
   return searchableText([hub.name, hub.residentName, hub.manufacturer, hub.model, hub.room, hub.primary ? 'primary' : '', hub.reachable ? 'reachable' : 'not reachable']);
 }
@@ -1279,15 +1316,6 @@ function bridgeOwnText(bridge) {
 }
 function bridgeAccessoryText(accessory) {
   return searchableText([accessory.name, accessory.manufacturer, accessory.model, accessory.room, accessory.isMatter ? 'Matter' : '', ...(accessory.capabilities || [])]);
-}
-function bridgeText(bridge) {
-  return searchableText([
-    bridge.name,
-    bridge.manufacturer,
-    bridge.model,
-    bridge.room,
-    ...(bridge.accessories || []).flatMap(accessory => [accessory.name, accessory.manufacturer, accessory.model, accessory.room, accessory.isMatter ? 'Matter' : '', ...(accessory.capabilities || [])]),
-  ]);
 }
 function contextText(source) {
   return [
@@ -1301,6 +1329,7 @@ function contextText(source) {
   ].join(' ').toLowerCase();
 }
 function fillSelect(select, values) {
+  const selected = select.value;
   const first = select.firstElementChild;
   select.innerHTML = '';
   if (first) select.appendChild(first);
@@ -1310,6 +1339,56 @@ function fillSelect(select, values) {
     option.textContent = value;
     select.appendChild(option);
   }
+  if (values.includes(selected)) select.value = selected;
+}
+function filterGroup(tabName = currentTab) {
+  return els.filterGroups.find(group => group.dataset.filterTab === tabName);
+}
+function filterSelects(tabName = currentTab) {
+  return [...(filterGroup(tabName)?.querySelectorAll('select') || [])];
+}
+function clearViewFilters(tabName) {
+  for (const select of filterSelects(tabName)) select.value = '';
+  if (tabName === 'automations') quickFilter = '';
+}
+function viewHasActiveFilters(tabName = currentTab) {
+  return filterSelects(tabName).some(select => Boolean(select.value)) || (tabName === 'automations' && Boolean(quickFilter));
+}
+function populateFilterOptions() {
+  const layout = data.layout || {};
+  const layoutRooms = [
+    ...(layout.zones || []).flatMap(zone => zone.rooms || []),
+    ...(layout.roomsWithoutZone || []),
+  ];
+  const accessories = allAccessories();
+  const bridges = data.infrastructure?.bridges || [];
+  const bridgedAccessories = bridges.flatMap(bridge => bridge.accessories || []);
+  const sceneActions = data.scenes.flatMap(scene => scene.actions || []);
+
+  fillSelect(els.layoutZone, uniq([
+    ...(layout.zones || []).map(zone => zone.name),
+    (layout.roomsWithoutZone || []).length ? 'No Zone' : '',
+  ]));
+  fillSelect(els.layoutRoom, uniq(layoutRooms.map(room => room.name)));
+  fillSelect(els.layoutCapability, uniq(accessories.flatMap(accessory => accessory.capabilities || [])));
+
+  fillSelect(els.bridgeName, uniq(bridges.map(bridge => bridge.name)));
+  fillSelect(els.bridgeRoom, uniq(bridgedAccessories.map(accessory => accessory.room)));
+  fillSelect(els.bridgeCapability, uniq(bridgedAccessories.flatMap(accessory => accessory.capabilities || [])));
+
+  fillSelect(els.manufacturerName, uniq(manufacturers().map(group => group.name)));
+  fillSelect(els.manufacturerRoom, uniq(accessories.map(accessory => accessory.room)));
+  fillSelect(els.manufacturerCapability, uniq(accessories.flatMap(accessory => accessory.capabilities || [])));
+
+  fillSelect(els.capabilityName, uniq(capabilityGroups().map(group => group.name)));
+  fillSelect(els.capabilityRoom, uniq(accessories.map(accessory => accessory.room)));
+  fillSelect(els.capabilityManufacturer, uniq(accessories.map(accessory => accessory.manufacturer || 'Unknown Manufacturer')));
+
+  fillSelect(els.theme, uniq(data.rules.map(rule => rule.displayTheme)));
+  fillSelect(els.room, uniq(data.rules.flatMap(rule => rule.rooms)));
+  fillSelect(els.sceneRoom, uniq(sceneActions.map(action => action.room)));
+  fillSelect(els.sceneCharacteristic, uniq(sceneActions.map(action => action.characteristic)));
+  fillSelect(els.configTheme, uniq(themeConfig.themes || []));
 }
 function setTab(tabName) {
   currentTab = tabName;
@@ -1373,17 +1452,21 @@ function init() {
     ['Scenes', data.scenes.length, 'scenes', 'scenes', 'Show scenes'],
   ].map(([label, value, kind, action, title]) => `<button class="metric ${kind}" data-summary-action="${action}" title="${esc(title)}"><b>${value}</b><span>${label}</span></button>`).join('');
   els.summary.querySelectorAll('[data-summary-action]').forEach(btn => btn.addEventListener('click', () => applySummaryAction(btn.dataset.summaryAction)));
-  fillSelect(els.theme, uniq(data.rules.map(rule => rule.displayTheme)));
-  fillSelect(els.room, uniq(data.rules.flatMap(rule => rule.rooms)));
-  for (const el of [els.search, els.status, els.theme, els.room, els.automationType, els.confidence]) el.addEventListener('input', () => {
+  populateFilterOptions();
+  for (const el of [els.search, ...els.filterGroups.flatMap(group => [...group.querySelectorAll('select')])]) el.addEventListener('input', () => {
     quickFilter = '';
     render();
   });
+  document.querySelectorAll('[data-clear-filters]').forEach(button => button.addEventListener('click', () => {
+    clearViewFilters(button.dataset.clearFilters);
+    render();
+  }));
   els.filterToggle.addEventListener('click', () => {
     filtersExpanded = !filtersExpanded;
     render();
   });
   els.tabs.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
+    filtersExpanded = false;
     setTab(tab.dataset.tab);
     render();
   }));
@@ -1493,7 +1576,15 @@ function sceneText(scene) {
 }
 function filteredScenes() {
   const q = els.search.value.trim().toLowerCase();
-  return data.scenes.filter(scene => !q || sceneText(scene).includes(q));
+  return data.scenes.filter(scene => {
+    if (q && !sceneText(scene).includes(q)) return false;
+    if (!els.sceneRoom.value && !els.sceneCharacteristic.value) return true;
+    return (scene.actions || []).some(action => {
+      if (els.sceneRoom.value && action.room !== els.sceneRoom.value) return false;
+      if (els.sceneCharacteristic.value && action.characteristic !== els.sceneCharacteristic.value) return false;
+      return true;
+    });
+  });
 }
 function renderSceneList(scenes) {
   if (!scenes.some(scene => scene.id === selectedSceneId)) selectedSceneId = scenes[0]?.id;
@@ -1533,18 +1624,30 @@ function renderLayout() {
   els.main.classList.add('single');
   document.querySelector('.sidebar').style.display = 'none';
   const layout = data.layout || {};
-  const q = els.search.value.trim().toLowerCase();
+  const q = searchQuery();
+  const filterLayoutRoom = (room, parentMatchesSearch = false) => {
+    if (els.layoutRoom.value && room.name !== els.layoutRoom.value) return null;
+    const roomMatchesSearch = Boolean(q && normalizeSearch(room.name).includes(q));
+    const accessories = (room.accessories || []).filter(accessory => {
+      if (!accessoryMatchesFilters(accessory, {capability: els.layoutCapability.value})) return false;
+      return !q || parentMatchesSearch || roomMatchesSearch || normalizeSearch(accessoryText(accessory)).includes(q);
+    });
+    const requiresAccessoryMatch = Boolean(els.layoutCapability.value || (q && !parentMatchesSearch && !roomMatchesSearch));
+    if (requiresAccessoryMatch && !accessories.length) return null;
+    return {...room, accessories};
+  };
   const zones = (layout.zones || []).map(zone => {
-    if (!q) return zone;
-    const zoneNameMatches = zone.name.toLowerCase().includes(q);
-    const rooms = (zone.rooms || [])
-      .map(room => zoneNameMatches ? room : filterRoom(room, q))
-      .filter(room => zoneNameMatches || room.name.toLowerCase().includes(q) || (room.accessories || []).length);
+    if (els.layoutZone.value && zone.name !== els.layoutZone.value) return null;
+    const zoneMatchesSearch = Boolean(q && normalizeSearch(zone.name).includes(q));
+    const rooms = (zone.rooms || []).map(room => filterLayoutRoom(room, zoneMatchesSearch)).filter(Boolean);
+    if (!rooms.length && (q || els.layoutRoom.value || els.layoutCapability.value)) return null;
     return {...zone, rooms};
-  }).filter(zone => !q || zone.name.toLowerCase().includes(q) || (zone.rooms || []).length);
-  const roomsWithoutZone = (layout.roomsWithoutZone || [])
-    .map(room => filterRoom(room, q))
-    .filter(room => !q || room.name.toLowerCase().includes(q) || (room.accessories || []).length);
+  }).filter(Boolean);
+  const includeRoomsWithoutZone = !els.layoutZone.value || els.layoutZone.value === 'No Zone';
+  const noZoneMatchesSearch = Boolean(q && normalizeSearch('No Zone Rooms Without Zone').includes(q));
+  const roomsWithoutZone = includeRoomsWithoutZone
+    ? (layout.roomsWithoutZone || []).map(room => filterLayoutRoom(room, noZoneMatchesSearch)).filter(Boolean)
+    : [];
   els.detail.innerHTML = `
     <h2>Home Layout</h2>
     <div class="detail-top">
@@ -1568,11 +1671,19 @@ function renderLayout() {
 function renderManufacturers() {
   els.main.classList.add('single');
   document.querySelector('.sidebar').style.display = 'none';
-  const q = els.search.value.trim().toLowerCase();
-  const groups = manufacturers().map(group => ({
-    ...group,
-    accessories: group.accessories.filter(accessory => !q || accessoryText(accessory).includes(q) || group.name.toLowerCase().includes(q)),
-  })).filter(group => group.accessories.length);
+  const q = searchQuery();
+  const groups = manufacturers().map(group => {
+    if (els.manufacturerName.value && group.name !== els.manufacturerName.value) return null;
+    const groupMatchesSearch = Boolean(q && normalizeSearch(group.name).includes(q));
+    const accessories = group.accessories.filter(accessory => {
+      if (!accessoryMatchesFilters(accessory, {
+        room: els.manufacturerRoom.value,
+        capability: els.manufacturerCapability.value,
+      })) return false;
+      return !q || groupMatchesSearch || normalizeSearch(accessoryText(accessory)).includes(q);
+    });
+    return accessories.length ? {...group, accessories} : null;
+  }).filter(Boolean);
   const totalAccessories = groups.reduce((sum, group) => sum + group.accessories.length, 0);
   els.detail.innerHTML = `
     <h2>Manufacturers</h2>
@@ -1601,10 +1712,18 @@ function renderCapabilities() {
   els.main.classList.add('single');
   document.querySelector('.sidebar').style.display = 'none';
   const q = searchQuery();
-  const groups = capabilityGroups().map(group => ({
-    ...group,
-    accessories: group.accessories.filter(accessory => !q || normalizeSearch(accessoryText(accessory)).includes(q) || normalizeSearch(group.name).includes(q)),
-  })).filter(group => group.accessories.length && (!q || capabilityText(group).includes(q)));
+  const groups = capabilityGroups().map(group => {
+    if (els.capabilityName.value && group.name !== els.capabilityName.value) return null;
+    const groupMatchesSearch = Boolean(q && normalizeSearch(group.name).includes(q));
+    const accessories = group.accessories.filter(accessory => {
+      if (!accessoryMatchesFilters(accessory, {
+        room: els.capabilityRoom.value,
+        manufacturer: els.capabilityManufacturer.value,
+      })) return false;
+      return !q || groupMatchesSearch || normalizeSearch(accessoryText(accessory)).includes(q);
+    });
+    return accessories.length ? {...group, accessories} : null;
+  }).filter(Boolean);
   const totalAccessories = uniq(groups.flatMap(group => group.accessories.map(accessory => String(accessory.id)))).length;
   const totalReferences = groups.reduce((sum, group) => sum + group.accessories.length, 0);
   els.detail.innerHTML = `
@@ -1664,13 +1783,21 @@ function renderBridges() {
   document.querySelector('.sidebar').style.display = 'none';
   const q = searchQuery();
   const infra = data.infrastructure || {};
+  const hasAccessoryFilter = Boolean(els.bridgeRoom.value || els.bridgeCapability.value);
   const bridges = (infra.bridges || []).map(bridge => {
-    if (!q || bridgeOwnText(bridge).includes(q)) return bridge;
-    return {
-      ...bridge,
-      accessories: (bridge.accessories || []).filter(accessory => bridgeAccessoryText(accessory).includes(q)),
-    };
-  }).filter(bridge => !q || bridgeText(bridge).includes(q) || bridge.accessories.length);
+    if (els.bridgeName.value && bridge.name !== els.bridgeName.value) return null;
+    const bridgeMatchesSearch = Boolean(q && bridgeOwnText(bridge).includes(q));
+    const accessories = (bridge.accessories || []).filter(accessory => {
+      if (!accessoryMatchesFilters(accessory, {
+        room: els.bridgeRoom.value,
+        capability: els.bridgeCapability.value,
+      })) return false;
+      return !q || bridgeMatchesSearch || bridgeAccessoryText(accessory).includes(q);
+    });
+    if (hasAccessoryFilter && !accessories.length) return null;
+    if (q && !bridgeMatchesSearch && !accessories.length) return null;
+    return {...bridge, accessories};
+  }).filter(Boolean);
   els.detail.innerHTML = `
     <h2>Bridges</h2>
     <div class="detail-top">
@@ -1754,7 +1881,14 @@ function renderConfig() {
   const visibleRules = data.rules
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}))
-    .filter(rule => !q || textOf(rule).includes(q) || rule.name.toLowerCase().includes(q));
+    .filter(rule => {
+      const assignedTheme = themeConfig.automationThemeOverrides?.[rule.name] || '';
+      if (q && !textOf(rule).includes(q) && !rule.name.toLowerCase().includes(q)) return false;
+      if (els.configTheme.value && assignedTheme !== els.configTheme.value) return false;
+      if (els.configAssignment.value === 'assigned' && !assignedTheme) return false;
+      if (els.configAssignment.value === 'unassigned' && assignedTheme) return false;
+      return true;
+    });
   const themeOptions = (selected) => [
     `<option value="">${UNASSIGNED_THEME}</option>`,
     ...themes.map(theme => `<option value="${esc(theme)}" ${theme === selected ? 'selected' : ''}>${esc(theme)}</option>`),
@@ -1796,26 +1930,28 @@ function renderConfig() {
     else delete themeConfig.automationThemeOverrides[select.dataset.ruleName];
     document.getElementById('configText').value = JSON.stringify(themeConfig, null, 2);
     applyConfiguredThemes();
-    fillSelect(els.theme, uniq(data.rules.map(rule => rule.displayTheme)));
+    populateFilterOptions();
+    render();
   }));
   document.getElementById('saveConfig').addEventListener('click', () => {
     themeConfig = JSON.parse(document.getElementById('configText').value);
     localStorage.setItem(CONFIG_KEY, JSON.stringify(themeConfig));
     applyConfiguredThemes();
-    fillSelect(els.theme, uniq(data.rules.map(rule => rule.displayTheme)));
+    populateFilterOptions();
     render();
   });
   document.getElementById('clearThemes').addEventListener('click', () => {
     themeConfig.automationThemeOverrides = {};
     localStorage.setItem(CONFIG_KEY, JSON.stringify(themeConfig));
     applyConfiguredThemes();
-    fillSelect(els.theme, uniq(data.rules.map(rule => rule.displayTheme)));
+    populateFilterOptions();
     render();
   });
   document.getElementById('resetConfig').addEventListener('click', () => {
     themeConfig = structuredClone(data.themeConfig);
     localStorage.removeItem(CONFIG_KEY);
     applyConfiguredThemes();
+    populateFilterOptions();
     render();
   });
   document.getElementById('exportConfig').addEventListener('click', () => {
@@ -1833,6 +1969,7 @@ function renderConfig() {
     themeConfig = JSON.parse(await file.text());
     localStorage.setItem(CONFIG_KEY, JSON.stringify(themeConfig));
     applyConfiguredThemes();
+    populateFilterOptions();
     render();
   });
 }
@@ -1844,11 +1981,17 @@ function render() {
   sidebar.style.display = currentTab === 'layout' || currentTab === 'hubs' || currentTab === 'bridges' || currentTab === 'context' || currentTab === 'manufacturers' || currentTab === 'capabilities' || currentTab === 'config' ? 'none' : '';
   els.content.style.display = inlineDetailMode ? 'none' : '';
   els.search.style.display = '';
-  els.automationFilters.classList.toggle('visible', currentTab === 'automations');
-  els.automationFilters.classList.toggle('open', currentTab === 'automations' && filtersExpanded);
-  els.filterToggle.classList.toggle('visible', currentTab === 'automations');
-  els.filterToggle.setAttribute('aria-expanded', String(currentTab === 'automations' && filtersExpanded));
-  const hasFilter = Boolean(els.status.value || els.theme.value || els.room.value || els.automationType.value || els.confidence.value || quickFilter);
+  const activeFilterGroup = filterGroup();
+  for (const group of els.filterGroups) {
+    const active = group === activeFilterGroup;
+    group.classList.toggle('visible', active);
+    group.classList.toggle('open', active && filtersExpanded);
+  }
+  els.filterToggle.classList.toggle('visible', Boolean(activeFilterGroup));
+  els.filterToggle.setAttribute('aria-expanded', String(Boolean(activeFilterGroup && filtersExpanded)));
+  if (activeFilterGroup) els.filterToggle.setAttribute('aria-controls', activeFilterGroup.id);
+  else els.filterToggle.removeAttribute('aria-controls');
+  const hasFilter = viewHasActiveFilters();
   els.filterToggle.textContent = filtersExpanded ? 'Hide' : (hasFilter ? 'Filters *' : 'Filters');
   if (currentTab === 'layout') return renderLayout();
   if (currentTab === 'hubs') return renderHubs();

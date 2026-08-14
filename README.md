@@ -263,12 +263,17 @@ The inspector is organized into dedicated tabs:
 - **Context Sources**: optional Homebridge-derived platforms, helpers,
   webhooks, and semantic relations.
 - **Manufacturers**: accessories grouped by manufacturer.
+- **Capabilities**: accessories grouped by decoded HomeKit service type.
 - **Automations**: active/inactive automations with `WHEN`, `IF`, `THEN`,
   scenes, devices, rooms, confidence, and unresolved values.
 - **Scenes**: scenes and their actions.
 - **Theme Editor**: local assignment of automations to user-defined themes.
 
-The global search box filters the current view.
+The global search box filters the current view. High-volume views also expose
+independent contextual filters: zones, rooms, capabilities, manufacturers,
+bridges, scene actions, or theme assignments as appropriate. Filter options
+remain stable while selections are combined, rather than cascading from one
+control into another.
 
 See [docs/EXPLORER.md](docs/EXPLORER.md) for a detailed description of each
 tab.
@@ -303,9 +308,11 @@ main inspector tab:
 
 - [Overview](assets/homekit-inspector-overview.svg)
 - [Home Layout](assets/tab-home-layout.svg)
-- [Hubs and Bridges](assets/tab-hubs-bridges.svg)
+- [Hubs](assets/tab-hubs.svg)
+- [Bridges](assets/tab-bridges.svg)
 - [Context Sources](assets/tab-context-sources.svg)
 - [Manufacturers](assets/tab-manufacturers.svg)
+- [Capabilities](assets/tab-capabilities.svg)
 - [Automations](assets/tab-automations.svg)
 - [Scenes](assets/tab-scenes.svg)
 - [Theme Editor](assets/tab-theme-editor.svg)

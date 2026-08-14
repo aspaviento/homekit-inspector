@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added independent contextual filters to Home Layout, Bridges, Manufacturers,
+  Capabilities, Scenes, and Theme Editor while retaining the existing
+  Automations filters.
 - Added decoded HomeKit service capability badges and a Capabilities tab for grouping accessories by service type.
 - Expanded decoded HomeKit service capabilities to include fans, lightbulbs, and switches.
 - Refined the summary ribbon into clickable high-level inventory and navigation metrics.

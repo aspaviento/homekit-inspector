@@ -1,10 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
   <title id="title">Theme Editor tab example</title>
-  <desc id="desc">Synthetic HomeKit Inspector Theme Editor tab showing local automation theme assignments.</desc>
+  <desc id="desc">Synthetic HomeKit Inspector Theme Editor tab with independent theme and assignment filters.</desc>
   <rect width="960" height="540" fill="#f4f7fb"/>
   <style>.title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}.h{font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a;letter-spacing:.7px}.t{font:500 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}.m{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a}.btn{font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#fff}</style>
   <text x="34" y="44" class="title">Theme Editor</text>
   <text x="34" y="70" class="m">Local automation taxonomy stored in browser localStorage or a theme config file</text>
+  <g transform="translate(34 86)">
+    <rect width="300" height="32" rx="6" fill="#fff" stroke="#cbd5e1"/><text x="14" y="21" class="m">All themes</text>
+    <rect x="312" width="350" height="32" rx="6" fill="#fff" stroke="#cbd5e1"/><text x="326" y="21" class="m">Any assignment</text>
+    <rect x="674" width="184" height="32" rx="6" fill="#fff" stroke="#cbd5e1"/><text x="716" y="21" class="m">Clear filters</text>
+  </g>
+  <g transform="translate(0 36)">
   <rect x="34" y="104" width="892" height="350" rx="8" fill="#fff" stroke="#dce3ed"/>
   <text x="58" y="142" class="h">AUTOMATION THEMES</text>
   <g transform="translate(58 170)">
@@ -21,4 +27,5 @@
   <rect x="58" y="398" width="106" height="34" rx="6" fill="#2563eb"/><text x="76" y="420" class="btn">Save locally</text>
   <rect x="176" y="398" width="142" height="34" rx="6" fill="#fff" stroke="#cbd5e1"/><text x="194" y="420" class="m">Clear assignments</text>
   <rect x="330" y="398" width="112" height="34" rx="6" fill="#fff" stroke="#cbd5e1"/><text x="348" y="420" class="m">Export JSON</text>
+  </g>
 </svg>

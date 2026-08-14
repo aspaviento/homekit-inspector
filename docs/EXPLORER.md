@@ -81,6 +81,15 @@ The generated `homekit_inspector_data.json` has these main sections:
 
 ## Views
 
+The search box applies to the active view. Views with larger inventories also
+show a contextual filter bar below the tabs. These filters are independent:
+selecting one option does not remove or recalculate the options in the other
+controls. Multiple selections are combined when rendering results.
+
+Home Layout, Bridges, Manufacturers, Capabilities, Automations, Scenes, and
+Theme Editor provide filters suited to their data. Hubs and Context Sources
+retain search only because they normally contain a small number of records.
+
 ### Home Layout
 
 ![Home Layout tab](../assets/tab-home-layout.svg)
@@ -88,6 +97,8 @@ The generated `homekit_inspector_data.json` has these main sections:
 Shows the static HomeKit structure: zones, rooms, accessories, and services.
 Unnamed HomeKit rooms are labeled with their internal room id rather than being
 merged into a generic unassigned bucket.
+
+The view can be filtered independently by zone, room, and decoded capability.
 
 This tab provides the physical and logical layout of the HomeKit home before
 reading automations. It shows which accessories belong to each room, how rooms
@@ -119,7 +130,7 @@ than a full UUID-level dependency graph.
 
 ### Hubs
 
-![Hubs and Bridges tab](../assets/tab-hubs-bridges.svg)
+![Hubs tab](../assets/tab-hubs.svg)
 
 Shows Apple resident devices known to HomeKit, including reachability and the
 inferred primary hub when the local database exposes that relationship. Hubs
@@ -127,12 +138,16 @@ are operational infrastructure for HomeKit automations and remote access.
 
 ### Bridges
 
+![Bridges tab](../assets/tab-bridges.svg)
+
 Shows bridge relationships found in HomeKit. Bridge mappings are derived from
 HomeKit's `ZHOSTACCESSORY` relationship.
 
 The Bridges view groups bridged accessories under the bridge that contributes
 them to HomeKit, which helps explain where accessories from Homebridge, Home
 Assistant bridges, Hue, Aqara, or similar integrations enter the HomeKit graph.
+It can be filtered independently by bridge, bridged-accessory room, and decoded
+capability.
 
 ### Context Sources
 
@@ -164,6 +179,8 @@ values exposed in HomeKit. This is useful for auditing device families,
 spotting bridge-imported accessories, and understanding whether a group of
 automations depends heavily on a single vendor or integration.
 
+The view can be filtered independently by manufacturer, room, and capability.
+
 Accessory cards in this view use the same automation and bridge markers as the
 Home Layout view, including decoded capability badges, so vendor-level review
 can still jump to the related Automations or Bridges context.
@@ -182,6 +199,8 @@ manufacturers, bridge origin, and automation usage. The global search includes
 capability names, accessory names, rooms, manufacturers, models, and service
 names in this tab.
 
+The view can be filtered independently by capability, room, and manufacturer.
+
 Accessory cards in this view use the same automation and bridge markers as the
 Home Layout and Manufacturers views, so capability-level review can still jump
 to related Automations or Bridges context.
@@ -199,7 +218,7 @@ Shows each automation as:
 - confidence and unresolved-value flags.
 
 The list is sorted alphabetically and can be filtered by status, theme, room,
-and confidence.
+Standard/Advanced type, and confidence.
 
 This is the main rule-inspection tab. It is designed for automations created in
 Apple's Home app and for richer HomeKit rules authored in apps such as Eve.
@@ -231,6 +250,8 @@ an automation's `THEN` section says only that it runs a scene: the automation
 explains when and why the scene runs, while the scene view explains which
 accessories and characteristics the scene changes.
 
+Scenes can be filtered independently by action room and changed characteristic.
+
 ### Theme Editor
 
 ![Theme Editor tab](../assets/tab-theme-editor.svg)
@@ -245,6 +266,9 @@ This tab lets the user group automations into local themes such as security,
 presence simulation, lighting, access, climate, or any other taxonomy that fits
 the installation. Theme assignments are local metadata and do not alter the
 HomeKit export.
+
+The editor can be filtered independently by a specific theme and by assigned
+or unassigned status.
 
 ## Data Layers
 

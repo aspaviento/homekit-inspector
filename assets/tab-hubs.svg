@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Hubs tab example</title>
+  <desc id="desc">Synthetic HomeKit Inspector Hubs tab showing resident devices without additional filters.</desc>
+  <rect width="960" height="540" fill="#f4f7fb"/>
+  <style>.title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}.t{font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}.m{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#68758a}.b{font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#11834f}</style>
+  <text x="34" y="44" class="title">Hubs</text>
+  <text x="34" y="70" class="m">Apple resident devices coordinating HomeKit automations and remote access</text>
+  <g transform="translate(34 92)">
+    <rect width="94" height="22" rx="5" fill="#fff" stroke="#dce3ed"/><text x="12" y="15" class="m">3 home hubs</text>
+    <rect x="106" width="82" height="22" rx="5" fill="#e9f8f0" stroke="#a9dec4"/><text x="118" y="15" class="b">3 reachable</text>
+  </g>
+  <g transform="translate(34 140)">
+    <rect width="280" height="230" rx="8" fill="#fff" stroke="#8ab2ff"/><rect width="4" height="230" fill="#2563eb"/>
+    <text x="22" y="42" class="t">Living Room HomePod</text>
+    <rect x="22" y="62" width="62" height="22" rx="5" fill="#e9f8f0" stroke="#a9dec4"/><text x="34" y="77" class="b">Primary</text>
+    <rect x="94" y="62" width="78" height="22" rx="5" fill="#e9f8f0" stroke="#a9dec4"/><text x="106" y="77" class="b">Reachable</text>
+    <text x="22" y="120" class="m">Apple HomePod</text><text x="22" y="146" class="m">Living Room</text>
+  </g>
+  <g transform="translate(340 140)">
+    <rect width="280" height="230" rx="8" fill="#fff" stroke="#dce3ed"/><rect width="4" height="230" fill="#11834f"/>
+    <text x="22" y="42" class="t">Kitchen HomePod mini</text>
+    <rect x="22" y="62" width="78" height="22" rx="5" fill="#e9f8f0" stroke="#a9dec4"/><text x="34" y="77" class="b">Reachable</text>
+    <text x="22" y="120" class="m">Apple HomePod mini</text><text x="22" y="146" class="m">Kitchen</text>
+  </g>
+  <g transform="translate(646 140)">
+    <rect width="280" height="230" rx="8" fill="#fff" stroke="#dce3ed"/><rect width="4" height="230" fill="#6d5bd0"/>
+    <text x="22" y="42" class="t">Studio Apple TV</text>
+    <rect x="22" y="62" width="78" height="22" rx="5" fill="#e9f8f0" stroke="#a9dec4"/><text x="34" y="77" class="b">Reachable</text>
+    <text x="22" y="120" class="m">Apple TV 4K</text><text x="22" y="146" class="m">Studio</text>
+  </g>
+</svg>

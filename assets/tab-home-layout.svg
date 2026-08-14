@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
   <title id="title">Home Layout tab example</title>
-  <desc id="desc">Synthetic HomeKit Inspector Home Layout tab with zones, rooms, accessories, and services.</desc>
+  <desc id="desc">Synthetic HomeKit Inspector Home Layout tab with independent zone, room, and capability filters.</desc>
   <rect width="960" height="540" fill="#f4f7fb"/>
   <style>
     .title{font:700 24px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}
@@ -10,6 +10,13 @@
   </style>
   <text x="34" y="44" class="title">Home Layout</text>
   <text x="34" y="70" class="m">Zones, rooms, accessories, and exposed services</text>
+  <g transform="translate(34 86)">
+    <rect width="210" height="32" rx="6" fill="#fff" stroke="#cbd5e1"/><text x="14" y="21" class="m">All zones</text>
+    <rect x="222" width="210" height="32" rx="6" fill="#fff" stroke="#cbd5e1"/><text x="236" y="21" class="m">All rooms</text>
+    <rect x="444" width="250" height="32" rx="6" fill="#fff" stroke="#cbd5e1"/><text x="458" y="21" class="m">All capabilities</text>
+    <rect x="706" width="152" height="32" rx="6" fill="#fff" stroke="#cbd5e1"/><text x="738" y="21" class="m">Clear filters</text>
+  </g>
+  <g transform="translate(0 36)">
   <g transform="translate(34 104)">
     <rect width="280" height="340" rx="8" fill="transparent"/>
     <text x="18" y="30" class="h">GROUND FLOOR</text>
@@ -41,5 +48,6 @@
     <text x="34" y="82" class="t">Homebridge</text>
     <text x="34" y="108" class="m">Security Mode Helper</text>
     <text x="34" y="132" class="m">Webhook Contact, Virtual Switch</text>
+  </g>
   </g>
 </svg>
