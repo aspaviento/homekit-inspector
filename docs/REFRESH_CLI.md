@@ -4,10 +4,57 @@ The refresh CLI turns HomeKit Inspector's extraction and HTML generation steps
 into one repeatable operation. It remains read-only with respect to HomeKit and
 publishes only validated generated artifacts.
 
+## User Installation
+
+Install the CLI without `sudo`:
+
+```bash
+./install-cli.sh --config /path/to/private-refresh-config.json
+```
+
+The installer copies executable code to
+`~/Library/Application Support/HomeKit Inspector/app`, migrates the selected
+configuration to `~/Library/Application Support/HomeKit Inspector/config.json`,
+copies optional theme, override, and Homebridge inputs into a private `config/`
+directory, and creates `~/.local/bin/homekit-inspector`.
+
+The installed layout separates replaceable code from stable private data:
+
+```text
+~/Library/Application Support/HomeKit Inspector/
+├── app/
+├── config.json
+├── config/
+└── output/
+```
+
+Code updates are installed by rerunning the same command. Existing
+configuration and outputs are preserved. Use `--replace-config` together with
+`--config FILE` to replace and remigrate the installed configuration.
+
+Custom locations can be selected with `--app-home` and `--bin-dir`, or with
+`HOMEKIT_INSPECTOR_HOME` and `HOMEKIT_INSPECTOR_BIN_DIR`. The Python executable
+can be selected with `HOMEKIT_INSPECTOR_PYTHON`.
+
+Terminal or the configured Python executable must retain Full Disk Access for
+the extractor to read the protected HomeKit database.
+
+Uninstall code and the command while preserving private data:
+
+```bash
+./uninstall-cli.sh
+```
+
+`./uninstall-cli.sh --remove-private-data` also deletes the installed
+configuration, copied context inputs, output reports, and refresh status. The
+destructive option is explicit, and the uninstaller rejects critical directory
+targets such as `/`, the home directory, or `~/Library`.
+
 ## Commands
 
 ```bash
 bin/homekit-inspector validate-config --config CONFIG.json
+bin/homekit-inspector show-config --config CONFIG.json
 bin/homekit-inspector refresh --config CONFIG.json
 bin/homekit-inspector status --config CONFIG.json
 ```
@@ -33,8 +80,16 @@ Without `--config`, the CLI looks for:
 ~/Library/Application Support/HomeKit Inspector/config.json
 ```
 
+This is the path populated by `install-cli.sh`, so installed commands normally
+do not need `--config`.
+
 `validate-config` checks the schema, database and optional input files, and the
 local executables needed by the selected publisher. It does not extract data.
+
+`show-config` prints the effective configuration file, resolved filesystem
+paths, optional input locations, and publication settings as JSON. It does not
+read the HomeKit database, inspect the optional input contents, or contact the
+publication target.
 
 `refresh` performs these steps:
 

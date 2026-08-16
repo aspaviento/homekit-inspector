@@ -479,6 +479,40 @@ def print_status(config: RefreshConfig) -> int:
     return 0
 
 
+def print_config(config_path: Path, config: RefreshConfig) -> int:
+    payload = {
+        "version": CONFIG_VERSION,
+        "configPath": str(config_path.expanduser().resolve()),
+        "database": str(config.database),
+        "workingDirectory": str(config.working_directory),
+        "inputs": {
+            "themeConfig": (
+                str(config.inputs.theme_config) if config.inputs.theme_config else None
+            ),
+            "privateOverrides": (
+                str(config.inputs.private_overrides)
+                if config.inputs.private_overrides
+                else None
+            ),
+            "homebridgeConfig": (
+                str(config.inputs.homebridge_config)
+                if config.inputs.homebridge_config
+                else None
+            ),
+        },
+        "publish": {
+            "type": config.publish.kind,
+            "host": config.publish.host,
+            "path": str(config.publish.path),
+            "healthUrl": config.publish.health_url,
+            "healthTimeoutSeconds": config.publish.health_timeout_seconds,
+        },
+        "verbose": config.verbose,
+    }
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0
+
+
 def add_config_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--config",
@@ -494,6 +528,7 @@ def main() -> int:
     for name, help_text in (
         ("refresh", "Extract, generate, validate, and publish the inspector"),
         ("validate-config", "Validate configuration and required local inputs"),
+        ("show-config", "Print the effective configuration and resolved paths as JSON"),
         ("status", "Print the last refresh status as JSON"),
     ):
         command_parser = subparsers.add_parser(name, help=help_text)
@@ -506,6 +541,8 @@ def main() -> int:
             validate_config(config)
             print("Configuration is valid")
             return 0
+        if args.command == "show-config":
+            return print_config(args.config, config)
         if args.command == "status":
             return print_status(config)
         result = run_refresh(config)

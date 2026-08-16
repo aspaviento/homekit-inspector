@@ -161,6 +161,41 @@ class HomeKitInspectorCliTests(unittest.TestCase):
         )
         self.assertIn("refresh", completed.stdout)
         self.assertIn("validate-config", completed.stdout)
+        self.assertIn("show-config", completed.stdout)
+
+    def test_show_config_prints_effective_path_and_resolved_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            config_path = self.write_config(
+                root,
+                {
+                    "version": 1,
+                    "database": "core.sqlite",
+                    "workingDirectory": "output",
+                    "inputs": {"themeConfig": "config/themes.json"},
+                    "publish": {"type": "local", "path": "served/report.html"},
+                },
+            )
+            completed = subprocess.run(
+                [
+                    str(ROOT / "bin/homekit-inspector"),
+                    "show-config",
+                    "--config",
+                    str(config_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            payload = json.loads(completed.stdout)
+            self.assertEqual(payload["configPath"], str(config_path))
+            self.assertEqual(payload["database"], str(root / "core.sqlite"))
+            self.assertEqual(
+                payload["inputs"]["themeConfig"], str(root / "config/themes.json")
+            )
+            self.assertEqual(
+                payload["publish"]["path"], str(root / "served/report.html")
+            )
 
     def test_wrapper_accepts_configurable_python_executable(self):
         environment = os.environ.copy()
