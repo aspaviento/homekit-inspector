@@ -85,8 +85,9 @@ do not need `--config`.
 
 If the database contains more than one HomeKit home, `refresh` selects the home
 marked as primary by HomeKit. Its log prints the selected name, selection
-method, and number of available homes. Explicit selection of another home is
-not supported in this version.
+method, and number of available homes; the same information is stored in the
+successful refresh status. Explicit selection of another home is not supported
+in this version.
 
 `validate-config` checks the schema, database and optional input files, and the
 local executables needed by the selected publisher. It does not extract data.

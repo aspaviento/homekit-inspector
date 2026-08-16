@@ -14,6 +14,7 @@ from scripts.homekit_inspector_cli import (
     NoRedirectHandler,
     REPORT_FILENAME,
     atomic_write_json,
+    extraction_home_summary,
     load_config,
     publish_report,
     sha256_file,
@@ -26,6 +27,28 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class HomeKitInspectorCliTests(unittest.TestCase):
+    def test_extraction_home_summary_requires_explicit_selection_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            export = Path(tmp) / EXPORT_FILENAME
+            export.write_text(
+                json.dumps(
+                    {
+                        "homeName": "Primary Home",
+                        "homeSelection": "primary",
+                        "availableHomeCount": 2,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                extraction_home_summary(export),
+                {
+                    "name": "Primary Home",
+                    "selection": "primary",
+                    "availableCount": 2,
+                },
+            )
+
     def test_server_publication_does_not_follow_redirects(self):
         handler = NoRedirectHandler()
         self.assertIsNone(

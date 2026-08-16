@@ -452,6 +452,27 @@ def validate_generated_output(directory: Path) -> dict[str, str]:
     }
 
 
+def extraction_home_summary(export_path: Path) -> dict:
+    try:
+        payload = json.loads(export_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RefreshError(f"Unable to read selected HomeKit home: {exc}") from exc
+    name = payload.get("homeName")
+    selection = payload.get("homeSelection")
+    available_count = payload.get("availableHomeCount")
+    if not isinstance(name, str) or not name:
+        raise RefreshError("Extractor did not identify a HomeKit home")
+    if selection not in {"primary", "first"}:
+        raise RefreshError("Extractor did not report a valid HomeKit home selection")
+    if type(available_count) is not int or available_count < 1:
+        raise RefreshError("Extractor did not report the available HomeKit home count")
+    return {
+        "name": name,
+        "selection": selection,
+        "availableCount": available_count,
+    }
+
+
 def signature_payload(
     timestamp: str, nonce: str, digest: str, content_length: int
 ) -> bytes:
@@ -579,6 +600,13 @@ def run_refresh(config: RefreshConfig) -> dict:
                 export_path = temporary / EXPORT_FILENAME
                 print("Extracting HomeKit data...", file=sys.stderr)
                 run_command(extractor_command(config, export_path), verbose=config.verbose)
+                selected_home = extraction_home_summary(export_path)
+                print(
+                    f"Selected HomeKit home: {selected_home['name']} "
+                    f"({selected_home['selection']}; "
+                    f"{selected_home['availableCount']} available)",
+                    file=sys.stderr,
+                )
                 print("Generating inspector...", file=sys.stderr)
                 run_command(
                     generator_command(config, export_path, temporary), verbose=config.verbose
@@ -606,6 +634,7 @@ def run_refresh(config: RefreshConfig) -> dict:
                 "completedAt": completed_at,
                 "durationSeconds": round(time.monotonic() - started, 3),
                 "publishType": config.publish.kind,
+                "home": selected_home,
                 "reportSha256": published_hash,
                 "artifacts": hashes,
                 "health": health,
