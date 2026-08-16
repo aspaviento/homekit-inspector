@@ -415,6 +415,9 @@ security behavior, so they are best kept out of public repositories.
 ## Limitations
 
 - The HomeKit database schema is private and can change between macOS releases.
+- When the database contains multiple homes, this version inspects the home
+  marked as primary by HomeKit and reports that selection in the extraction
+  log. Selecting a different home explicitly is planned for a future version.
 - Full Disk Access is required because `~/Library/HomeKit/` is TCC-protected.
 - Some Eve/HomeKit predicates are partially opaque and may need review.
 - Some values are reported as unresolved when the decoder cannot identify them

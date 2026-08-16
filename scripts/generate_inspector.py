@@ -119,7 +119,9 @@ def build_rows(data, db_path, private_overrides=None, homebridge_security=None):
         reports.summarize(auto, index)
         for index, auto in enumerate(data.get("automations") or [], start=1)
     ]
-    char_refs = build_characteristic_ref_lookup(db_path if db_path else None)
+    char_refs = build_characteristic_ref_lookup(
+        db_path if db_path else None, data.get("homeId")
+    )
     condition_by_name = {
         summary["name"]: summary
         for summary in (
@@ -209,6 +211,8 @@ def build_payload(data, rows, theme_config=None, context_sources=None):
             "extractionDate": data.get("extractionDate"),
             "databasePath": data.get("databasePath"),
             "homeName": data.get("homeName"),
+            "homeSelection": data.get("homeSelection"),
+            "availableHomeCount": data.get("availableHomeCount"),
             "language": "en",
             "notes": [
                 "Generated from local HomeKit SQLite export.",
@@ -318,7 +322,7 @@ def service_capability(service_type):
     return SERVICE_CAPABILITY_LABELS.get((service_type or "").upper(), "")
 
 
-def load_home_layout(db_path, fallback_data):
+def load_home_layout(db_path, fallback_data, home_id=None):
     zones = [
         {
             "name": reports.canonical_zone_name(zone.get("name") or ""),
@@ -331,14 +335,19 @@ def load_home_layout(db_path, fallback_data):
 
     conn = open_readonly_sqlite(db_path)
     cur = conn.cursor()
-    cur.execute(
+    query = (
         "SELECT acc.Z_PK, acc.ZCONFIGUREDNAME, acc.ZPROVIDEDNAME, "
         "acc.ZMANUFACTURER, acc.ZMODEL, acc.ZUNIQUEIDENTIFIER, acc.ZROOM, r.ZNAME, "
         "acc.ZMATTERNODEID, acc.ZMATTERVENDORID, acc.ZMATTERPRODUCTID "
         "FROM ZMKFACCESSORY acc "
         "LEFT JOIN ZMKFROOM r ON r.Z_PK = acc.ZROOM "
-        "ORDER BY r.ZNAME, acc.ZCONFIGUREDNAME, acc.ZMANUFACTURER, acc.ZMODEL"
     )
+    parameters = ()
+    if home_id is not None:
+        query += "WHERE acc.ZHOME = ? "
+        parameters = (home_id,)
+    query += "ORDER BY r.ZNAME, acc.ZCONFIGUREDNAME, acc.ZMANUFACTURER, acc.ZMODEL"
+    cur.execute(query, parameters)
     accessories = {}
     for (
         pk,
@@ -442,25 +451,36 @@ def load_home_layout(db_path, fallback_data):
     }
 
 
-def load_infrastructure(db_path):
+def load_infrastructure(db_path, home_id=None):
     if not db_path:
         return {"homeHubs": [], "bridges": []}
     conn = open_readonly_sqlite(db_path)
     cur = conn.cursor()
 
-    cur.execute("SELECT ZPREFERREDRESIDENTIDSIDENTIFIERS FROM ZMKFRESIDENTSELECTION ORDER BY Z_PK LIMIT 1")
+    selection_query = "SELECT ZPREFERREDRESIDENTIDSIDENTIFIERS FROM ZMKFRESIDENTSELECTION "
+    selection_parameters = ()
+    if home_id is not None:
+        selection_query += "WHERE ZHOME = ? "
+        selection_parameters = (home_id,)
+    selection_query += "ORDER BY Z_PK LIMIT 1"
+    cur.execute(selection_query, selection_parameters)
     row = cur.fetchone()
     preferred_resident_blob = row[0] if row and row[0] else b""
 
-    cur.execute(
+    resident_query = (
         "SELECT res.Z_PK, res.ZNAME, res.ZREACHABLE, res.ZIDSIDENTIFIER, "
         "acc.Z_PK, acc.ZCONFIGUREDNAME, acc.ZMANUFACTURER, acc.ZMODEL, "
         "acc.ZUNIQUEIDENTIFIER, r.ZNAME "
         "FROM ZMKFRESIDENT res "
         "LEFT JOIN ZMKFACCESSORY acc ON acc.Z_PK = res.ZAPPLEMEDIAACCESSORY "
         "LEFT JOIN ZMKFROOM r ON r.Z_PK = acc.ZROOM "
-        "ORDER BY res.ZREACHABLE DESC, acc.ZCONFIGUREDNAME, res.ZNAME"
     )
+    resident_parameters = ()
+    if home_id is not None:
+        resident_query += "WHERE res.ZHOME = ? "
+        resident_parameters = (home_id,)
+    resident_query += "ORDER BY res.ZREACHABLE DESC, acc.ZCONFIGUREDNAME, res.ZNAME"
+    cur.execute(resident_query, resident_parameters)
     home_hubs = []
     for (
         resident_id,
@@ -491,13 +511,22 @@ def load_infrastructure(db_path):
         )
 
     capabilities_by_accessory = {}
-    cur.execute("SELECT ZACCESSORY, ZSERVICETYPE FROM ZMKFSERVICE WHERE ZSERVICETYPE IS NOT NULL")
+    capability_query = (
+        "SELECT s.ZACCESSORY, s.ZSERVICETYPE FROM ZMKFSERVICE s "
+        "JOIN ZMKFACCESSORY a ON a.Z_PK = s.ZACCESSORY "
+        "WHERE s.ZSERVICETYPE IS NOT NULL"
+    )
+    capability_parameters = ()
+    if home_id is not None:
+        capability_query += " AND a.ZHOME = ?"
+        capability_parameters = (home_id,)
+    cur.execute(capability_query, capability_parameters)
     for accessory_id, service_type_blob in cur.fetchall():
         capability = service_capability(homekit_uuid(service_type_blob))
         if capability:
             capabilities_by_accessory.setdefault(accessory_id, set()).add(capability)
 
-    cur.execute(
+    bridge_query = (
         "SELECT host.Z_PK, host.ZCONFIGUREDNAME, host.ZPROVIDEDNAME, "
         "host.ZMANUFACTURER, host.ZMODEL, host.ZUNIQUEIDENTIFIER, hr.ZNAME, "
         "child.Z_PK, child.ZCONFIGUREDNAME, child.ZPROVIDEDNAME, "
@@ -508,9 +537,16 @@ def load_infrastructure(db_path):
         "LEFT JOIN ZMKFROOM hr ON hr.Z_PK = host.ZROOM "
         "LEFT JOIN ZMKFROOM cr ON cr.Z_PK = child.ZROOM "
         "WHERE child.Z_PK != host.Z_PK "
+    )
+    bridge_parameters = ()
+    if home_id is not None:
+        bridge_query += "AND child.ZHOME = ? AND host.ZHOME = ? "
+        bridge_parameters = (home_id, home_id)
+    bridge_query += (
         "ORDER BY host.ZCONFIGUREDNAME, host.ZMANUFACTURER, host.ZMODEL, "
         "child.ZCONFIGUREDNAME, child.ZMANUFACTURER, child.ZMODEL"
     )
+    cur.execute(bridge_query, bridge_parameters)
     bridges_by_id = {}
     for (
         host_id,
@@ -572,12 +608,12 @@ def load_infrastructure(db_path):
 
 
 
-def load_scenes(db_path):
+def load_scenes(db_path, home_id=None):
     if not db_path:
         return []
     conn = open_readonly_sqlite(db_path)
     cur = conn.cursor()
-    cur.execute(
+    scene_query = (
         "SELECT aset.Z_PK, aset.ZNAME, aset.ZTYPE, a.Z_PK, a.Z_ENT, "
         "a.ZTARGETVALUE, a.ZSTATE, a.ZVOLUME, "
         "s.ZNAME, s.ZEXPECTEDCONFIGUREDNAME, s.ZPROVIDEDNAME, "
@@ -591,8 +627,13 @@ def load_scenes(db_path):
         "LEFT JOIN ZMKFCHARACTERISTIC c ON c.ZSERVICE = a.ZSERVICE "
         "  AND c.ZINSTANCEID = a.ZCHARACTERISTICID "
         "WHERE aset.ZTYPE != 'HMActionSetTypeTriggerOwned' "
-        "ORDER BY aset.ZTYPE, aset.ZNAME, a.Z_PK"
     )
+    scene_parameters = ()
+    if home_id is not None:
+        scene_query += "AND aset.ZHOME = ? "
+        scene_parameters = (home_id,)
+    scene_query += "ORDER BY aset.ZTYPE, aset.ZNAME, a.Z_PK"
+    cur.execute(scene_query, scene_parameters)
     scenes_by_id = {}
     for row in cur.fetchall():
         (
@@ -2092,9 +2133,10 @@ def main():
         print(f"Wrote {args.write_inferred_theme_config}")
     context_sources = [homebridge_security] if homebridge_security else []
     payload = build_payload(data, rows, load_theme_config(args.theme_config), context_sources)
-    payload["layout"] = load_home_layout(db_path, data)
-    payload["infrastructure"] = load_infrastructure(db_path)
-    scenes = load_scenes(db_path)
+    home_id = data.get("homeId")
+    payload["layout"] = load_home_layout(db_path, data, home_id)
+    payload["infrastructure"] = load_infrastructure(db_path, home_id)
+    scenes = load_scenes(db_path, home_id)
     attach_scene_references(payload, scenes)
     out_dir = args.output_dir or args.input_json.parent
     out_dir.mkdir(parents=True, exist_ok=True)

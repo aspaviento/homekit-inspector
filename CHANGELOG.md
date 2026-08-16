@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Scoped extraction, layout, infrastructure, scenes, and condition lookups to
+  the HomeKit primary home when multiple homes share the local database.
+- Added extraction metadata and logging for the selected home and available
+  home count.
 - Added signed HTTPS report publication with HMAC-SHA256, timestamp and nonce
   replay protection, SHA-256 verification, upload limits, and atomic replacement.
 - Reduced publication to two explicit modes: default local HTML generation and
