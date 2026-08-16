@@ -2,18 +2,19 @@
 
 ## Unreleased
 
-- Added authenticated HTTP report publication with SHA-256 verification,
-  upload limits, structural validation, atomic replacement, and report status.
-- Added private upload-token migration and optional server installer support
-  while retaining local and SSH publication modes.
+- Added signed HTTPS report publication with HMAC-SHA256, timestamp and nonce
+  replay protection, SHA-256 verification, upload limits, and atomic replacement.
+- Reduced publication to two explicit modes: default local HTML generation and
+  secure publication to the optional report server.
+- Added private credential migration, direct TLS support, credential generation,
+  and a documented server installer entry point.
 - Added a user-scoped CLI installer with private configuration migration,
   repeatable code updates, a stable command path, and a safe uninstaller that
   preserves private data by default.
 - Added a `show-config` CLI subcommand for displaying the effective
   configuration file and resolved paths without accessing HomeKit data.
 - Added a configuration-driven refresh CLI with locking, temporary generation,
-  validation, status reporting, atomic local publication, and hash-verified SSH
-  publication.
+  validation, status reporting, and atomic publication.
 - Added a stable command launcher with refresh, validation, and status
   subcommands and a configurable Python executable.
 - Added independent contextual filters to Home Layout, Bridges, Manufacturers,

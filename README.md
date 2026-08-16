@@ -172,15 +172,14 @@ The launcher uses `python3` by default. Set `HOMEKIT_INSPECTOR_PYTHON` to an
 executable name or absolute path to select a specific compatible interpreter.
 
 Start from [examples/refresh-config.example.json](examples/refresh-config.example.json)
-or [examples/refresh-config-http.example.json](examples/refresh-config-http.example.json),
-and keep the real configuration outside version control. The CLI supports
-authenticated HTTP API, atomic local-file, and SSH publication. It stores
-neither bearer tokens nor SSH passwords directly in its JSON configuration.
+or [examples/refresh-config-server.example.json](examples/refresh-config-server.example.json),
+and keep the real configuration outside version control. The CLI supports two
+publication modes: local HTML generation and signed HTTPS publication to the
+optional report server. Secrets remain in separate owner-only files.
 
-The LAN server reads the inspector file on every request with browser caching
-disabled, so the next browser reload sees an atomically published report. The
-CLI can publish through its authenticated HTTP endpoint, SSH, or a local path.
-Browser-initiated refresh is intentionally outside this version.
+The report server reads the inspector file on every request with browser
+caching disabled, so the next browser reload sees an atomically published
+report. Browser-initiated refresh is intentionally outside this version.
 
 See [docs/REFRESH_CLI.md](docs/REFRESH_CLI.md) for the configuration schema,
 installation layout, publication behavior, and failure guarantees.
@@ -274,65 +273,50 @@ names, and device names are private.
 
 When the inspector is served from a LAN host, browser-edited theme assignments
 still use `localStorage` and are scoped to the exact browser origin, such as
-`http://homekit-inspector.local:8099`. To share a consistent configuration
+`https://homekit-inspector.example.net:8099`. To share a consistent configuration
 across devices, keep the canonical theme file private on the Mac, regenerate
 the HTML with `--theme-config`, and redeploy the generated HTML.
 
-## Optional LAN Server
+## Optional Report Server
 
-The generated HTML can be served on a private LAN host such as a Raspberry Pi.
-The included server serves `homekit_inspector.html`, exposes health and report
-status endpoints, and can optionally accept authenticated report replacement.
-It does not extract HomeKit data, access HomeKit, or write theme changes back to
-disk.
+The optional server can run on a Raspberry Pi or another Linux host. It serves
+the report and accepts signed publication from an authorized macOS client. It
+does not access HomeKit or initiate extraction.
 
-Generate a shared token with at least 32 random characters, keep its copies
-outside version control with owner-only permissions, and transfer one copy
-securely to the LAN host. For example:
+Create private credentials and install the server with the included scripts:
 
 ```bash
-openssl rand -hex 32 > private-upload-token
-chmod 600 private-upload-token
+scripts/create-server-credentials.sh \
+  --hostname inspector-server.example.net \
+  --output-dir /path/to/private/server-credentials
+
+sudo ./install-server.sh \
+  --publish-secret-file /path/to/publish-secret \
+  --tls-cert-file /path/to/server-cert.pem \
+  --tls-key-file /path/to/server-key.pem \
+  --view-username inspector \
+  --view-password-file /path/to/view-password
 ```
 
-Install from a cloned checkout on the LAN host using its token copy:
-
-```bash
-sudo ./install.sh \
-  --install-dir /opt/homekit-inspector \
-  --data-dir /var/lib/homekit-inspector \
-  --user pi \
-  --port 8099 \
-  --upload-token-file /path/to/private-upload-token
-```
-
-Configure the macOS CLI with the corresponding API URL and its private token
-file. The CLI installer copies that token into its private configuration
-directory:
+Configure the client with `server` publication:
 
 ```json
 {
   "publish": {
-    "type": "http",
-    "url": "http://inspector-server.local:8099/api/v1/report",
-    "tokenFile": "/path/to/private-upload-token",
-    "healthUrl": "http://inspector-server.local:8099/health"
+    "type": "server",
+    "url": "https://inspector-server.example.net:8099/api/v1/report",
+    "secretFile": "/path/to/publish-secret",
+    "caFile": "/path/to/ca.pem",
+    "healthUrl": "https://inspector-server.example.net:8099/health"
   }
 }
 ```
 
-Start or restart the server and inspect its endpoints:
-
-```bash
-sudo systemctl restart homekit-inspector.service
-curl http://raspberrypi.local:8099/health
-curl http://raspberrypi.local:8099/api/v1/status
-```
-
-The server is intended for trusted LAN or VPN access only; real home reports
-are not public internet artifacts. Bearer authentication prevents unauthorized
-replacement but plain HTTP does not encrypt the token or report. Use an HTTPS
-reverse proxy when the network itself is not trusted.
+Server mode requires HTTPS except for a loopback-only reverse-proxy upstream.
+Each request is authenticated with HMAC-SHA256, timestamped, and protected
+against replay; the shared secret never travels over the network. See
+[docs/SERVER.md](docs/SERVER.md) for credential handling, direct TLS, reverse
+proxy, installation, firewall, validation, and rotation guidance.
 
 ## Private Overrides
 
@@ -385,13 +369,14 @@ homekit-inspector/
 │   ├── EXPLORER.md              # Inspector and context-source details
 │   ├── PRIVACY.md               # Sensitive-data and publishing checklist
 │   ├── REFRESH_CLI.md           # Repeatable refresh and publication workflow
+│   ├── SERVER.md                # Secure report server installation and operation
 │   ├── SCHEMA.md                # homed CoreData schema notes
 │   └── TECHNICAL_APPROACH.md    # Scope, pipeline, and design boundaries
 ├── examples/
 │   ├── homebridge-context.example.json
 │   ├── private-overrides.example.json
 │   ├── refresh-config.example.json
-│   ├── refresh-config-http.example.json
+│   ├── refresh-config-server.example.json
 │   ├── theme-config.example.json
 │   └── sample_output.json
 ├── scripts/
@@ -399,8 +384,11 @@ homekit-inspector/
 │   ├── generate_condition_diagnostics.py
 │   ├── generate_homekit_reports.py
 │   ├── homekit_inspector_cli.py
-│   └── generate_inspector.py
+│   ├── generate_inspector.py
+│   ├── serve_inspector.py
+│   └── create-server-credentials.sh
 ├── install-cli.sh               # User-scoped CLI installation and updates
+├── install-server.sh            # Linux report-server installation entry point
 └── uninstall-cli.sh             # Safe removal, preserving private data by default
 ```
 

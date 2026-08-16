@@ -20,13 +20,14 @@ The tool extracts and presents:
   Lighting targets where available.
 - Optional external context, currently Homebridge configuration.
 - User-maintained theme assignments and private overrides.
+- Optional local or authenticated server publication of the completed report.
 
 The tool does not:
 
 - modify HomeKit;
 - write to the HomeKit database;
 - restart or control `homed`;
-- publish or upload data;
+- transmit data unless `server` publication is explicitly configured;
 - attempt to recreate automations in another platform.
 
 ## Primary Data Source

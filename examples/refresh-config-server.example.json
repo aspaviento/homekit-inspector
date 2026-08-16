@@ -8,11 +8,12 @@
     "homebridgeConfig": null
   },
   "publish": {
-    "type": "http",
-    "url": "http://inspector-server.local:8099/api/v1/report",
-    "tokenFile": "/path/to/private-upload-token",
+    "type": "server",
+    "url": "https://inspector-server.example.net:8099/api/v1/report",
+    "secretFile": "/path/to/private-publish-secret",
+    "caFile": "/path/to/private-server-ca.pem",
     "requestTimeoutSeconds": 30,
-    "healthUrl": "http://inspector-server.local:8099/health",
+    "healthUrl": "https://inspector-server.example.net:8099/health",
     "healthTimeoutSeconds": 5
   },
   "verbose": false

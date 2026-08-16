@@ -70,25 +70,27 @@ class InstallCliTests(unittest.TestCase):
             self.assertEqual(result, "preserved")
             self.assertTrue(json.loads(destination.read_text(encoding="utf-8"))["existing"])
 
-    def test_migrates_http_publication_token_to_private_storage(self):
+    def test_migrates_server_publication_credentials_to_private_storage(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp).resolve()
             source_dir = home / "source"
             source_dir.mkdir()
-            token = source_dir / "upload-token"
-            token.write_text(
-                "synthetic-upload-token-with-at-least-32-characters\n",
-                encoding="utf-8",
-            )
+            secret = source_dir / "publish-secret"
+            secret.write_text("ab" * 32 + "\n", encoding="ascii")
+            secret.chmod(0o600)
+            ca = source_dir / "server-ca.pem"
+            ca.write_text("synthetic CA certificate\n", encoding="utf-8")
+            ca.chmod(0o600)
             source = source_dir / "refresh.json"
             source.write_text(
                 json.dumps(
                     {
                         "version": 1,
                         "publish": {
-                            "type": "http",
+                            "type": "server",
                             "url": "https://inspector.example/api/v1/report",
-                            "tokenFile": "upload-token",
+                            "secretFile": "publish-secret",
+                            "caFile": "server-ca.pem",
                         },
                     }
                 ),
@@ -97,19 +99,22 @@ class InstallCliTests(unittest.TestCase):
             destination = home / "installed/config.json"
             result = install_config(source, destination)
             installed = json.loads(destination.read_text(encoding="utf-8"))
-            installed_token = destination.parent / installed["publish"]["tokenFile"]
+            installed_secret = destination.parent / installed["publish"]["secretFile"]
+            installed_ca = destination.parent / installed["publish"]["caFile"]
             self.assertEqual(result, "installed")
-            self.assertEqual(installed["publish"]["type"], "http")
+            self.assertEqual(installed["publish"]["type"], "server")
             self.assertEqual(
                 installed["publish"]["url"],
                 "https://inspector.example/api/v1/report",
             )
-            self.assertNotIn("synthetic-upload-token", destination.read_text(encoding="utf-8"))
+            self.assertNotIn("abababab", destination.read_text(encoding="utf-8"))
             self.assertEqual(
-                installed_token.read_text(encoding="utf-8"),
-                token.read_text(encoding="utf-8"),
+                installed_secret.read_text(encoding="ascii"),
+                secret.read_text(encoding="ascii"),
             )
-            self.assertEqual(stat.S_IMODE(installed_token.stat().st_mode), 0o600)
+            self.assertEqual(installed_ca.read_text(encoding="utf-8"), ca.read_text(encoding="utf-8"))
+            self.assertEqual(stat.S_IMODE(installed_secret.stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(installed_ca.stat().st_mode), 0o600)
 
     def test_installer_and_uninstaller_in_isolated_home(self):
         with tempfile.TemporaryDirectory() as tmp:

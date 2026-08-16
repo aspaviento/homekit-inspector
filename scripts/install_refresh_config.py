@@ -40,7 +40,11 @@ def display_path(path: Path) -> str:
         return str(path.resolve())
 
 
-def serialized_publish(config: RefreshConfig, installed_token_file: str | None = None) -> dict:
+def serialized_publish(
+    config: RefreshConfig,
+    installed_secret_file: str | None = None,
+    installed_ca_file: str | None = None,
+) -> dict:
     publish = {
         "type": config.publish.kind,
         "requestTimeoutSeconds": config.publish.request_timeout_seconds,
@@ -49,12 +53,12 @@ def serialized_publish(config: RefreshConfig, installed_token_file: str | None =
     }
     if config.publish.path is not None:
         publish["path"] = str(config.publish.path)
-    if config.publish.host:
-        publish["host"] = config.publish.host
     if config.publish.url:
         publish["url"] = config.publish.url
-    if installed_token_file:
-        publish["tokenFile"] = installed_token_file
+    if installed_secret_file:
+        publish["secretFile"] = installed_secret_file
+    if installed_ca_file:
+        publish["caFile"] = installed_ca_file
     return publish
 
 
@@ -81,18 +85,26 @@ def install_config(source: Path, destination: Path, replace: bool = False) -> st
         atomic_copy(input_path, installed_path, mode=0o600)
         installed_inputs[json_key] = f"config/{filename}"
 
-    installed_token_file = None
-    if config.publish.token_file is not None:
-        token_filename = "publish-token"
-        atomic_copy(config.publish.token_file, inputs_dir / token_filename, mode=0o600)
-        installed_token_file = f"config/{token_filename}"
+    installed_secret_file = None
+    if config.publish.secret_file is not None:
+        secret_filename = "publish-secret"
+        atomic_copy(config.publish.secret_file, inputs_dir / secret_filename, mode=0o600)
+        installed_secret_file = f"config/{secret_filename}"
+
+    installed_ca_file = None
+    if config.publish.ca_file is not None:
+        ca_filename = "server-ca.pem"
+        atomic_copy(config.publish.ca_file, inputs_dir / ca_filename, mode=0o600)
+        installed_ca_file = f"config/{ca_filename}"
 
     payload = {
         "version": 1,
         "database": display_path(config.database),
         "workingDirectory": "output",
         "inputs": installed_inputs,
-        "publish": serialized_publish(config, installed_token_file),
+        "publish": serialized_publish(
+            config, installed_secret_file, installed_ca_file
+        ),
         "verbose": config.verbose,
     }
     atomic_write_json(destination, payload)

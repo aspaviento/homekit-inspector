@@ -13,8 +13,11 @@ import hmac
 import json
 import mimetypes
 import os
+import re
+import ssl
 import tempfile
 import threading
+import time
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -26,6 +29,24 @@ DEFAULT_INDEX = "homekit_inspector.html"
 DEFAULT_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 REPORT_ENDPOINT = "/api/v1/report"
 STATUS_ENDPOINT = "/api/v1/status"
+SIGNATURE_PROTOCOL = "homekit-inspector-v1"
+SIGNATURE_MAX_AGE_SECONDS = 300
+SECRET_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+NONCE_PATTERN = re.compile(r"^[0-9a-f]{32}$")
+SIGNATURE_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+LOOPBACK_ADDRESSES = {"127.0.0.1", "::1"}
+CONTENT_SECURITY_POLICY = (
+    "default-src 'none'; "
+    "script-src 'unsafe-inline'; "
+    "style-src 'unsafe-inline'; "
+    "img-src 'self' data:; "
+    "font-src 'self' data:; "
+    "connect-src 'none'; "
+    "object-src 'none'; "
+    "base-uri 'none'; "
+    "form-action 'none'; "
+    "frame-ancestors 'none'"
+)
 
 
 def env_int(name: str, default: int) -> int:
@@ -63,8 +84,8 @@ class InspectorHandler(SimpleHTTPRequestHandler):
         return self.server.auth_header
 
     @property
-    def upload_token(self) -> str:
-        return self.server.upload_token
+    def publish_secret(self) -> bytes:
+        return self.server.publish_secret
 
     def do_GET(self) -> None:
         if self.path == "/health":
@@ -72,7 +93,6 @@ class InspectorHandler(SimpleHTTPRequestHandler):
                 {
                     "ok": True,
                     "index": self.index_name,
-                    "root": str(self.root),
                     "indexExists": (self.root / self.index_name).is_file(),
                 }
             )
@@ -99,13 +119,17 @@ class InspectorHandler(SimpleHTTPRequestHandler):
         if urlparse(self.path).path != REPORT_ENDPOINT:
             self.write_json({"ok": False, "error": "Not found"}, HTTPStatus.NOT_FOUND)
             return
-        if not self.upload_token:
+        if not self.publish_secret:
             self.write_json(
                 {"ok": False, "error": "Report upload is not configured"},
                 HTTPStatus.SERVICE_UNAVAILABLE,
             )
             return
-        if not self.check_upload_auth():
+        if not self.server.tls_enabled and self.client_address[0] not in LOOPBACK_ADDRESSES:
+            self.write_json(
+                {"ok": False, "error": "Report upload requires HTTPS"},
+                HTTPStatus.UPGRADE_REQUIRED,
+            )
             return
         if self.headers.get("Transfer-Encoding"):
             self.write_json(
@@ -151,6 +175,8 @@ class InspectorHandler(SimpleHTTPRequestHandler):
                 {"ok": False, "error": "X-Report-SHA256 must be a SHA-256 digest"},
                 HTTPStatus.BAD_REQUEST,
             )
+            return
+        if not self.check_publish_signature(expected_hash, content_length):
             return
         if not self.server.upload_lock.acquire(blocking=False):
             self.write_json(
@@ -215,7 +241,7 @@ class InspectorHandler(SimpleHTTPRequestHandler):
     def check_auth(self) -> bool:
         if not self.auth_header:
             return True
-        if self.headers.get("Authorization") == self.auth_header:
+        if hmac.compare_digest(self.headers.get("Authorization", ""), self.auth_header):
             return True
         self.send_response(HTTPStatus.UNAUTHORIZED)
         self.send_header("WWW-Authenticate", 'Basic realm="HomeKit Inspector"')
@@ -223,15 +249,49 @@ class InspectorHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         return False
 
-    def check_upload_auth(self) -> bool:
-        supplied = self.headers.get("Authorization", "")
-        expected = f"Bearer {self.upload_token}"
-        if hmac.compare_digest(supplied, expected):
-            return True
-        self.write_json(
-            {"ok": False, "error": "Unauthorized"}, HTTPStatus.UNAUTHORIZED
+    def check_publish_signature(self, digest: str, content_length: int) -> bool:
+        protocol = self.headers.get("X-Inspector-Protocol", "")
+        timestamp = self.headers.get("X-Inspector-Timestamp", "")
+        nonce = self.headers.get("X-Inspector-Nonce", "").lower()
+        supplied_signature = self.headers.get("X-Inspector-Signature", "").lower()
+        try:
+            timestamp_value = int(timestamp)
+        except ValueError:
+            timestamp_value = 0
+        now = int(time.time())
+        if (
+            protocol != SIGNATURE_PROTOCOL
+            or abs(now - timestamp_value) > SIGNATURE_MAX_AGE_SECONDS
+            or not NONCE_PATTERN.fullmatch(nonce)
+            or not SIGNATURE_PATTERN.fullmatch(supplied_signature)
+        ):
+            self.write_json(
+                {"ok": False, "error": "Unauthorized"}, HTTPStatus.UNAUTHORIZED
+            )
+            return False
+        expected_signature = request_signature(
+            self.publish_secret, timestamp, nonce, digest, content_length
         )
-        return False
+        if not hmac.compare_digest(supplied_signature, expected_signature):
+            self.write_json(
+                {"ok": False, "error": "Unauthorized"}, HTTPStatus.UNAUTHORIZED
+            )
+            return False
+        with self.server.nonce_lock:
+            cutoff = now - SIGNATURE_MAX_AGE_SECONDS
+            self.server.used_nonces = {
+                stored_nonce: used_at
+                for stored_nonce, used_at in self.server.used_nonces.items()
+                if used_at >= cutoff
+            }
+            if nonce in self.server.used_nonces:
+                self.write_json(
+                    {"ok": False, "error": "Request has already been used"},
+                    HTTPStatus.CONFLICT,
+                )
+                return False
+            self.server.used_nonces[nonce] = now
+        return True
 
     def serve_file(self, path: Path) -> None:
         try:
@@ -252,6 +312,14 @@ class InspectorHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(content_length))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+        self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+        self.send_header(
+            "Permissions-Policy",
+            "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+        )
         self.end_headers()
 
     def write_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
@@ -260,6 +328,9 @@ class InspectorHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(content)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(content)
@@ -269,9 +340,38 @@ class InspectorServer(ThreadingHTTPServer):
     root: Path
     index_name: str
     auth_header: str
-    upload_token: str
+    publish_secret: bytes
     max_upload_bytes: int
     upload_lock: threading.Lock
+    nonce_lock: threading.Lock
+    used_nonces: dict[str, int]
+    tls_enabled: bool
+
+
+def signature_payload(
+    timestamp: str, nonce: str, digest: str, content_length: int
+) -> bytes:
+    return "\n".join(
+        (
+            SIGNATURE_PROTOCOL,
+            "POST",
+            REPORT_ENDPOINT,
+            timestamp,
+            nonce,
+            digest,
+            str(content_length),
+        )
+    ).encode("ascii")
+
+
+def request_signature(
+    secret: bytes, timestamp: str, nonce: str, digest: str, content_length: int
+) -> str:
+    return hmac.new(
+        secret,
+        signature_payload(timestamp, nonce, digest, content_length),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def valid_inspector_report(content: bytes) -> bool:
@@ -293,7 +393,7 @@ def atomic_replace(destination: Path, content: bytes) -> None:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(temporary, 0o644)
+        os.chmod(temporary, 0o640)
         os.replace(temporary, destination)
     finally:
         temporary.unlink(missing_ok=True)
@@ -317,32 +417,120 @@ def report_status(path: Path) -> dict:
 
 
 def build_auth_header() -> str:
-    username = os.getenv("HOMEKIT_INSPECTOR_USERNAME", "")
-    password = os.getenv("HOMEKIT_INSPECTOR_PASSWORD", "")
-    if not username and not password:
+    username_path = os.getenv("HOMEKIT_INSPECTOR_VIEW_USERNAME_FILE", "")
+    password_path = os.getenv("HOMEKIT_INSPECTOR_VIEW_PASSWORD_FILE", "")
+    if not username_path and not password_path:
         return ""
-    if not username or not password:
-        raise SystemExit("Set both HOMEKIT_INSPECTOR_USERNAME and HOMEKIT_INSPECTOR_PASSWORD, or neither")
+    if not username_path or not password_path:
+        raise SystemExit(
+            "Set both HOMEKIT_INSPECTOR_VIEW_USERNAME_FILE and HOMEKIT_INSPECTOR_VIEW_PASSWORD_FILE"
+        )
+    try:
+        username = Path(username_path).read_text(encoding="utf-8").strip()
+        password = Path(password_path).read_text(encoding="ascii").strip()
+    except OSError as exc:
+        raise SystemExit(f"Unable to read viewer credentials: {exc}") from exc
+    if (
+        not username
+        or ":" in username
+        or any(character.isspace() for character in username)
+    ):
+        raise SystemExit(
+            "Viewer username must be non-empty and contain no colon or whitespace"
+        )
+    if not SECRET_PATTERN.fullmatch(password):
+        raise SystemExit(
+            "Viewer password file must contain exactly 64 lowercase hex characters"
+        )
+    for path in (Path(username_path), Path(password_path)):
+        require_server_private_file(path, "Viewer credential file")
     token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
     return f"Basic {token}"
 
 
-def load_upload_token() -> str:
-    raw_path = os.getenv("HOMEKIT_INSPECTOR_UPLOAD_TOKEN_FILE", "")
+def load_publish_secret() -> bytes:
+    raw_path = os.getenv("HOMEKIT_INSPECTOR_PUBLISH_SECRET_FILE", "")
     if not raw_path:
-        return ""
+        return b""
     path = Path(raw_path).expanduser().resolve()
     try:
-        token = path.read_text(encoding="utf-8").strip()
+        secret = path.read_text(encoding="ascii").strip()
     except OSError as exc:
-        raise SystemExit(f"Unable to read HOMEKIT_INSPECTOR_UPLOAD_TOKEN_FILE: {exc}") from exc
-    if len(token) < 32:
-        raise SystemExit("HOMEKIT_INSPECTOR_UPLOAD_TOKEN_FILE must contain at least 32 characters")
-    if any(character.isspace() for character in token):
-        raise SystemExit("HOMEKIT_INSPECTOR_UPLOAD_TOKEN_FILE must not contain whitespace")
-    if path.stat().st_mode & 0o077:
-        raise SystemExit("HOMEKIT_INSPECTOR_UPLOAD_TOKEN_FILE must use owner-only permissions")
-    return token
+        raise SystemExit(
+            f"Unable to read HOMEKIT_INSPECTOR_PUBLISH_SECRET_FILE: {exc}"
+        ) from exc
+    except UnicodeDecodeError as exc:
+        raise SystemExit(
+            "HOMEKIT_INSPECTOR_PUBLISH_SECRET_FILE must be ASCII hexadecimal"
+        ) from exc
+    if not SECRET_PATTERN.fullmatch(secret):
+        raise SystemExit(
+            "HOMEKIT_INSPECTOR_PUBLISH_SECRET_FILE must contain exactly 64 lowercase hex characters"
+        )
+    require_server_private_file(path, "HOMEKIT_INSPECTOR_PUBLISH_SECRET_FILE")
+    return bytes.fromhex(secret)
+
+
+def require_server_private_file(path: Path, label: str) -> None:
+    if path.stat().st_mode & 0o037:
+        raise SystemExit(
+            f"{label} must not be writable by group or accessible by other users"
+        )
+
+
+def configure_tls(server: InspectorServer) -> bool:
+    certificate = os.getenv("HOMEKIT_INSPECTOR_TLS_CERT_FILE", "")
+    private_key = os.getenv("HOMEKIT_INSPECTOR_TLS_KEY_FILE", "")
+    if not certificate and not private_key:
+        return False
+    if not certificate or not private_key:
+        raise SystemExit(
+            "Set both HOMEKIT_INSPECTOR_TLS_CERT_FILE and HOMEKIT_INSPECTOR_TLS_KEY_FILE"
+        )
+    key_path = Path(private_key).expanduser().resolve()
+    if not key_path.is_file():
+        raise SystemExit("HOMEKIT_INSPECTOR_TLS_KEY_FILE is not readable")
+    require_server_private_file(key_path, "HOMEKIT_INSPECTOR_TLS_KEY_FILE")
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    try:
+        context.load_cert_chain(certificate, private_key)
+    except (OSError, ssl.SSLError) as exc:
+        raise SystemExit(f"Unable to configure TLS certificate: {exc}") from exc
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+    return True
+
+
+def validate_transport(
+    host: str,
+    tls_enabled: bool,
+    view_auth_enabled: bool,
+    allow_unauthenticated_view: bool,
+) -> None:
+    if not tls_enabled and host not in {"localhost", *LOOPBACK_ADDRESSES}:
+        raise SystemExit(
+            "Network serving requires TLS or a loopback-only server behind a TLS proxy"
+        )
+    if (
+        host not in {"localhost", *LOOPBACK_ADDRESSES}
+        and not view_auth_enabled
+        and not allow_unauthenticated_view
+    ):
+        raise SystemExit(
+            "Network serving requires viewer authentication or an explicit override"
+        )
+
+
+def env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes"}:
+        return True
+    if normalized in {"0", "false", "no"}:
+        return False
+    raise SystemExit(f"{name} must be true or false")
 
 
 def main() -> None:
@@ -356,14 +544,24 @@ def main() -> None:
     server.root = root
     server.index_name = index_name
     server.auth_header = build_auth_header()
-    server.upload_token = load_upload_token()
+    server.publish_secret = load_publish_secret()
     server.max_upload_bytes = env_int(
         "HOMEKIT_INSPECTOR_MAX_UPLOAD_BYTES", DEFAULT_MAX_UPLOAD_BYTES
     )
     if server.max_upload_bytes <= 0:
         raise SystemExit("HOMEKIT_INSPECTOR_MAX_UPLOAD_BYTES must be positive")
     server.upload_lock = threading.Lock()
-    print(f"Serving HomeKit Inspector from {root} on http://{host}:{port}/", flush=True)
+    server.nonce_lock = threading.Lock()
+    server.used_nonces = {}
+    server.tls_enabled = configure_tls(server)
+    validate_transport(
+        host,
+        server.tls_enabled,
+        bool(server.auth_header),
+        env_bool("HOMEKIT_INSPECTOR_ALLOW_UNAUTHENTICATED_VIEW"),
+    )
+    scheme = "https" if server.tls_enabled else "http"
+    print(f"Serving HomeKit Inspector from {root} on {scheme}://{host}:{port}/", flush=True)
     server.serve_forever()
 
 

@@ -1,5 +1,5 @@
 [Unit]
-Description=HomeKit Inspector static LAN server
+Description=HomeKit Inspector report server
 After=network-online.target
 Wants=network-online.target
 
@@ -13,15 +13,31 @@ Environment=HOMEKIT_INSPECTOR_HOST=0.0.0.0
 Environment=HOMEKIT_INSPECTOR_PORT=8099
 Environment=HOMEKIT_INSPECTOR_ROOT=/var/lib/homekit-inspector
 Environment=HOMEKIT_INSPECTOR_INDEX=homekit_inspector.html
-Environment=HOMEKIT_INSPECTOR_UPLOAD_TOKEN_FILE=
+Environment=HOMEKIT_INSPECTOR_PUBLISH_SECRET_FILE=
 Environment=HOMEKIT_INSPECTOR_MAX_UPLOAD_BYTES=20971520
+Environment=HOMEKIT_INSPECTOR_TLS_CERT_FILE=
+Environment=HOMEKIT_INSPECTOR_TLS_KEY_FILE=
+Environment=HOMEKIT_INSPECTOR_VIEW_USERNAME_FILE=
+Environment=HOMEKIT_INSPECTOR_VIEW_PASSWORD_FILE=
+Environment=HOMEKIT_INSPECTOR_ALLOW_UNAUTHENTICATED_VIEW=false
 ExecStart=/usr/bin/python3 /opt/homekit-inspector/scripts/serve_inspector.py
 Restart=on-failure
 RestartSec=5
+UMask=0027
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=full
-ProtectHome=read-only
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6
 ReadWritePaths=/var/lib/homekit-inspector
 
 [Install]

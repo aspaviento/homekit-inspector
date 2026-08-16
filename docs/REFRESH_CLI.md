@@ -123,8 +123,7 @@ use owner-only permissions such as `chmod 600 CONFIG.json`.
   },
   "publish": {
     "type": "local",
-    "path": "~/Library/Application Support/HomeKit Inspector/published/homekit_inspector.html",
-    "healthUrl": null
+    "path": "~/Library/Application Support/HomeKit Inspector/published/homekit_inspector.html"
   },
   "verbose": false
 }
@@ -150,75 +149,54 @@ The local publisher atomically replaces one report file:
 {
   "publish": {
     "type": "local",
-    "path": "/srv/homekit-inspector/homekit_inspector.html",
-    "healthUrl": "http://inspector-server.local:8099/health"
+    "path": "~/Documents/HomeKit Inspector/homekit_inspector.html"
   }
 }
 ```
 
-This mode fits a server running on the same Mac or a mounted private volume.
-The destination directory is created when possible. The resulting served HTML
-uses mode `0644`; private working artifacts remain `0600`.
+This is the default mode and does not need a report server. The destination
+directory is created when possible. The published HTML and private working
+artifacts use mode `0600`.
 
-## SSH Publication
+When the `publish` object is omitted entirely, the default destination is:
 
-The SSH publisher uses `rsync` for transfer and `ssh` for remote hash
-verification:
-
-```json
-{
-  "publish": {
-    "type": "ssh",
-    "host": "inspector-server",
-    "path": "/var/lib/homekit-inspector/homekit_inspector.html",
-    "healthUrl": "http://inspector-server.local:8099/health",
-    "healthTimeoutSeconds": 5
-  }
-}
+```text
+~/Library/Application Support/HomeKit Inspector/published/homekit_inspector.html
 ```
 
-The host may be an SSH config alias or a `user@host` value. Authentication uses
-the current user's SSH agent, keys, and SSH configuration. Passwords and private
-keys do not belong in the refresh configuration.
+## Server Publication
 
-The remote server must provide Python 3 for SHA-256 verification. This is
-already a requirement of the included static server.
-
-## HTTP API Publication
-
-HTTP publication sends the validated self-contained report directly to the
-optional HomeKit Inspector server:
+Server publication sends the validated self-contained report to the optional
+HomeKit Inspector report server:
 
 ```json
 {
   "publish": {
-    "type": "http",
-    "url": "http://inspector-server.local:8099/api/v1/report",
-    "tokenFile": "config/publish-token",
+    "type": "server",
+    "url": "https://inspector-server.example.net:8099/api/v1/report",
+    "secretFile": "config/publish-secret",
+    "caFile": "config/server-ca.pem",
     "requestTimeoutSeconds": 30,
-    "healthUrl": "http://inspector-server.local:8099/health",
+    "healthUrl": "https://inspector-server.example.net:8099/health",
     "healthTimeoutSeconds": 5
   }
 }
 ```
 
-`tokenFile` points to a private file containing at least 32 random characters.
-The token itself is not stored in the JSON configuration, displayed by
-`show-config`, included in the generated report, or passed as a process
-argument. `install-cli.sh --config FILE` copies it into the installed private
-configuration directory with mode `0600`.
+`secretFile` contains exactly 64 lowercase hexadecimal characters representing
+a random 256-bit key. `caFile` is required for a private CA and omitted when the
+server certificate is already trusted by macOS. Both are copied into private
+installed storage by `install-cli.sh --config FILE`.
 
-The client sends the report with bearer authentication and its expected
-SHA-256 digest. The server rejects unauthorized, oversized, incomplete,
+The secret is not stored in JSON, displayed by `show-config`, included in the
+report, passed as a process argument, or transmitted. The client signs each
+request with HMAC-SHA256 over the endpoint, timestamp, one-time nonce, report
+digest, and content length. Redirects are rejected.
+
+The server rejects unsigned, stale, replayed, oversized, incomplete,
 hash-mismatched, or structurally invalid reports. A valid report atomically
 replaces the previous HTML file, and the response returns the stored digest for
 client verification.
-
-The upload endpoint is disabled unless the server is installed with a token:
-
-```bash
-sudo ./install.sh --upload-token-file /path/to/private-upload-token
-```
 
 The server API provides:
 
@@ -226,10 +204,10 @@ The server API provides:
 - `GET /api/v1/status`: current report size, modification time, and SHA-256.
 - `GET /health`: server and index availability.
 
-Bearer authentication does not encrypt plain HTTP. Use this mode only on a
-trusted LAN or VPN, or place the server behind an HTTPS reverse proxy. SSH
-publication remains available where its encrypted transport and key management
-are preferred.
+Remote server URLs must use HTTPS. Plain HTTP is accepted only for loopback
+development or a loopback-only upstream behind an HTTPS reverse proxy. See
+[SERVER.md](SERVER.md) for server installation, TLS setup, reverse-proxy
+requirements, credential rotation, and operational security.
 
 ## Failure Behavior
 

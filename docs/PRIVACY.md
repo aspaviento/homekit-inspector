@@ -17,7 +17,7 @@ schedules. Generated files are sensitive by default.
 - theme assignments from a real home
 - private overrides from a real home
 - screenshots of the inspector from a real home
-- report upload tokens and token files
+- publication secrets, viewer passwords, private CA keys, and TLS private keys
 
 These files are kept out of public commits.
 
@@ -48,10 +48,10 @@ not make the report less sensitive. The served directory remains private, and
 the report is intended only for a trusted LAN or VPN rather than public DNS,
 port forwarding, or an unauthenticated internet-facing reverse proxy.
 
-Authenticated API publication keeps its bearer token in a separate `0600`
-file. The token must not be committed, embedded in generated HTML, or placed in
-the server's document root. Plain HTTP does not encrypt either the token or the
-report; use HTTPS when the transport network is not trusted.
+Server publication keeps its HMAC secret in a separate `0600` file. The secret
+must not be committed, embedded in generated HTML, placed in the server's
+document root, passed as an argument, or transmitted. Server mode requires
+HTTPS for network transport and validates the server certificate and hostname.
 
 ## Homebridge Context
 
