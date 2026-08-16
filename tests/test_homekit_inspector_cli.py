@@ -1,6 +1,8 @@
 import json
+import os
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +19,9 @@ from scripts.homekit_inspector_cli import (
     sha256_file,
     validate_generated_output,
 )
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class HomeKitInspectorCliTests(unittest.TestCase):
@@ -146,6 +151,51 @@ class HomeKitInspectorCliTests(unittest.TestCase):
             path = Path(tmp) / "status.json"
             atomic_write_json(path, {"state": "success"})
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["state"], "success")
+
+    def test_command_wrapper_exposes_cli_help(self):
+        completed = subprocess.run(
+            [str(ROOT / "bin/homekit-inspector"), "--help"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertIn("refresh", completed.stdout)
+        self.assertIn("validate-config", completed.stdout)
+
+    def test_named_status_wrapper_uses_config_argument(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            config_path = self.write_config(
+                root,
+                {
+                    "version": 1,
+                    "workingDirectory": "work",
+                    "publish": {"type": "local", "path": "served/report.html"},
+                },
+            )
+            completed = subprocess.run(
+                [
+                    str(ROOT / "bin/homekit-inspector-status"),
+                    "--config",
+                    str(config_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        self.assertEqual(json.loads(completed.stdout)["state"], "never")
+
+    def test_wrapper_accepts_configurable_python_executable(self):
+        environment = os.environ.copy()
+        environment["HOMEKIT_INSPECTOR_PYTHON"] = sys.executable
+        completed = subprocess.run(
+            [str(ROOT / "bin/homekit-inspector"), "--help"],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+        self.assertIn("HomeKit Inspector", completed.stdout)
 
 
 if __name__ == "__main__":

@@ -5,6 +5,8 @@
 - Added a configuration-driven refresh CLI with locking, temporary generation,
   validation, status reporting, atomic local publication, and hash-verified SSH
   publication.
+- Added stable command launchers for refresh, validation, and status with a
+  configurable Python executable.
 - Added independent contextual filters to Home Layout, Bridges, Manufacturers,
   Capabilities, Scenes, and Theme Editor while retaining the existing
   Automations filters.

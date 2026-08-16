@@ -7,10 +7,33 @@ publishes only validated generated artifacts.
 ## Commands
 
 ```bash
-python3 scripts/homekit_inspector_cli.py validate-config --config CONFIG.json
-python3 scripts/homekit_inspector_cli.py refresh --config CONFIG.json
-python3 scripts/homekit_inspector_cli.py status --config CONFIG.json
+bin/homekit-inspector validate-config --config CONFIG.json
+bin/homekit-inspector refresh --config CONFIG.json
+bin/homekit-inspector status --config CONFIG.json
 ```
+
+The action is a subcommand; options keep the `--` prefix. For example,
+`refresh` is the action and `--config` selects its configuration file.
+
+Convenience launchers provide the same operations:
+
+```bash
+bin/homekit-inspector-validate-config --config CONFIG.json
+bin/homekit-inspector-refresh --config CONFIG.json
+bin/homekit-inspector-status --config CONFIG.json
+```
+
+The launchers resolve the project-relative Python entry point and use `python3`
+by default. A specific Python 3.9 or later executable can be selected without
+editing the scripts:
+
+```bash
+HOMEKIT_INSPECTOR_PYTHON=/path/to/python3 bin/homekit-inspector status \
+  --config CONFIG.json
+```
+
+Direct invocation of `scripts/homekit_inspector_cli.py` remains supported for
+development and embedding.
 
 Without `--config`, the CLI looks for:
 

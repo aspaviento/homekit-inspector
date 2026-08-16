@@ -68,7 +68,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 - macOS with HomeKit configured for the current iCloud user.
 - Full Disk Access for the terminal or shell running the extractor.
-- Python 3.10+.
+- Python 3.9+.
 - No Python package dependencies are required for extraction or HTML generation.
 
 ## Platform Support
@@ -123,15 +123,21 @@ The refresh CLI runs extraction, generation, validation, and publication as one
 locked operation driven by a private JSON configuration file:
 
 ```bash
-python3 scripts/homekit_inspector_cli.py validate-config \
+bin/homekit-inspector validate-config \
   --config /path/to/private-refresh-config.json
 
-python3 scripts/homekit_inspector_cli.py refresh \
+bin/homekit-inspector refresh \
   --config /path/to/private-refresh-config.json
 
-python3 scripts/homekit_inspector_cli.py status \
+bin/homekit-inspector status \
   --config /path/to/private-refresh-config.json
 ```
+
+Equivalent convenience commands are available as
+`bin/homekit-inspector-validate-config`, `bin/homekit-inspector-refresh`, and
+`bin/homekit-inspector-status`. The launcher uses `python3` by default. Set
+`HOMEKIT_INSPECTOR_PYTHON` to an executable name or absolute path to select a
+specific compatible interpreter.
 
 Start from [examples/refresh-config.example.json](examples/refresh-config.example.json)
 and keep the real configuration outside version control. The CLI supports an
@@ -311,6 +317,7 @@ tab.
 
 ```text
 homekit-inspector/
+├── bin/                         # Stable CLI launchers
 ├── assets/                      # Synthetic inspector images for documentation
 ├── docs/
 │   ├── EXPLORER.md              # Inspector and context-source details
