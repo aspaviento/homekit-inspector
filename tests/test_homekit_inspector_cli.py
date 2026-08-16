@@ -162,29 +162,6 @@ class HomeKitInspectorCliTests(unittest.TestCase):
         self.assertIn("refresh", completed.stdout)
         self.assertIn("validate-config", completed.stdout)
 
-    def test_named_status_wrapper_uses_config_argument(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            config_path = self.write_config(
-                root,
-                {
-                    "version": 1,
-                    "workingDirectory": "work",
-                    "publish": {"type": "local", "path": "served/report.html"},
-                },
-            )
-            completed = subprocess.run(
-                [
-                    str(ROOT / "bin/homekit-inspector-status"),
-                    "--config",
-                    str(config_path),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-        self.assertEqual(json.loads(completed.stdout)["state"], "never")
-
     def test_wrapper_accepts_configurable_python_executable(self):
         environment = os.environ.copy()
         environment["HOMEKIT_INSPECTOR_PYTHON"] = sys.executable

@@ -133,11 +133,8 @@ bin/homekit-inspector status \
   --config /path/to/private-refresh-config.json
 ```
 
-Equivalent convenience commands are available as
-`bin/homekit-inspector-validate-config`, `bin/homekit-inspector-refresh`, and
-`bin/homekit-inspector-status`. The launcher uses `python3` by default. Set
-`HOMEKIT_INSPECTOR_PYTHON` to an executable name or absolute path to select a
-specific compatible interpreter.
+The launcher uses `python3` by default. Set `HOMEKIT_INSPECTOR_PYTHON` to an
+executable name or absolute path to select a specific compatible interpreter.
 
 Start from [examples/refresh-config.example.json](examples/refresh-config.example.json)
 and keep the real configuration outside version control. The CLI supports an

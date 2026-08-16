@@ -15,15 +15,7 @@ bin/homekit-inspector status --config CONFIG.json
 The action is a subcommand; options keep the `--` prefix. For example,
 `refresh` is the action and `--config` selects its configuration file.
 
-Convenience launchers provide the same operations:
-
-```bash
-bin/homekit-inspector-validate-config --config CONFIG.json
-bin/homekit-inspector-refresh --config CONFIG.json
-bin/homekit-inspector-status --config CONFIG.json
-```
-
-The launchers resolve the project-relative Python entry point and use `python3`
+The launcher resolves the project-relative Python entry point and uses `python3`
 by default. A specific Python 3.9 or later executable can be selected without
 editing the scripts:
 
