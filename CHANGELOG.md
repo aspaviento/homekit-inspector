@@ -5,6 +5,8 @@
 - Added a user-scoped CLI installer with private configuration migration,
   repeatable code updates, a stable command path, and a safe uninstaller that
   preserves private data by default.
+- Added a `show-config` CLI subcommand for displaying the effective
+  configuration file and resolved paths without accessing HomeKit data.
 - Added a configuration-driven refresh CLI with locking, temporary generation,
   validation, status reporting, atomic local publication, and hash-verified SSH
   publication.

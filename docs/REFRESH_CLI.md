@@ -54,6 +54,7 @@ targets such as `/`, the home directory, or `~/Library`.
 
 ```bash
 bin/homekit-inspector validate-config --config CONFIG.json
+bin/homekit-inspector show-config --config CONFIG.json
 bin/homekit-inspector refresh --config CONFIG.json
 bin/homekit-inspector status --config CONFIG.json
 ```
@@ -84,6 +85,11 @@ do not need `--config`.
 
 `validate-config` checks the schema, database and optional input files, and the
 local executables needed by the selected publisher. It does not extract data.
+
+`show-config` prints the effective configuration file, resolved filesystem
+paths, optional input locations, and publication settings as JSON. It does not
+read the HomeKit database, inspect the optional input contents, or contact the
+publication target.
 
 `refresh` performs these steps:
 

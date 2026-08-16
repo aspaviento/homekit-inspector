@@ -143,6 +143,7 @@ command can then run from any directory without an explicit configuration path:
 
 ```bash
 homekit-inspector validate-config
+homekit-inspector show-config
 homekit-inspector refresh
 homekit-inspector status
 ```
@@ -155,6 +156,9 @@ The repository-local launcher remains available for development:
 
 ```bash
 bin/homekit-inspector validate-config \
+  --config /path/to/private-refresh-config.json
+
+bin/homekit-inspector show-config \
   --config /path/to/private-refresh-config.json
 
 bin/homekit-inspector refresh \
