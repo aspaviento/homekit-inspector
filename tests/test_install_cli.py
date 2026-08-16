@@ -70,6 +70,47 @@ class InstallCliTests(unittest.TestCase):
             self.assertEqual(result, "preserved")
             self.assertTrue(json.loads(destination.read_text(encoding="utf-8"))["existing"])
 
+    def test_migrates_http_publication_token_to_private_storage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp).resolve()
+            source_dir = home / "source"
+            source_dir.mkdir()
+            token = source_dir / "upload-token"
+            token.write_text(
+                "synthetic-upload-token-with-at-least-32-characters\n",
+                encoding="utf-8",
+            )
+            source = source_dir / "refresh.json"
+            source.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "publish": {
+                            "type": "http",
+                            "url": "https://inspector.example/api/v1/report",
+                            "tokenFile": "upload-token",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            destination = home / "installed/config.json"
+            result = install_config(source, destination)
+            installed = json.loads(destination.read_text(encoding="utf-8"))
+            installed_token = destination.parent / installed["publish"]["tokenFile"]
+            self.assertEqual(result, "installed")
+            self.assertEqual(installed["publish"]["type"], "http")
+            self.assertEqual(
+                installed["publish"]["url"],
+                "https://inspector.example/api/v1/report",
+            )
+            self.assertNotIn("synthetic-upload-token", destination.read_text(encoding="utf-8"))
+            self.assertEqual(
+                installed_token.read_text(encoding="utf-8"),
+                token.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(stat.S_IMODE(installed_token.stat().st_mode), 0o600)
+
     def test_installer_and_uninstaller_in_isolated_home(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp).resolve()

@@ -13,6 +13,8 @@ Environment=HOMEKIT_INSPECTOR_HOST=0.0.0.0
 Environment=HOMEKIT_INSPECTOR_PORT=8099
 Environment=HOMEKIT_INSPECTOR_ROOT=/var/lib/homekit-inspector
 Environment=HOMEKIT_INSPECTOR_INDEX=homekit_inspector.html
+Environment=HOMEKIT_INSPECTOR_UPLOAD_TOKEN_FILE=
+Environment=HOMEKIT_INSPECTOR_MAX_UPLOAD_BYTES=20971520
 ExecStart=/usr/bin/python3 /opt/homekit-inspector/scripts/serve_inspector.py
 Restart=on-failure
 RestartSec=5

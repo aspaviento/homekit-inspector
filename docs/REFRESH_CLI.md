@@ -184,6 +184,53 @@ keys do not belong in the refresh configuration.
 The remote server must provide Python 3 for SHA-256 verification. This is
 already a requirement of the included static server.
 
+## HTTP API Publication
+
+HTTP publication sends the validated self-contained report directly to the
+optional HomeKit Inspector server:
+
+```json
+{
+  "publish": {
+    "type": "http",
+    "url": "http://inspector-server.local:8099/api/v1/report",
+    "tokenFile": "config/publish-token",
+    "requestTimeoutSeconds": 30,
+    "healthUrl": "http://inspector-server.local:8099/health",
+    "healthTimeoutSeconds": 5
+  }
+}
+```
+
+`tokenFile` points to a private file containing at least 32 random characters.
+The token itself is not stored in the JSON configuration, displayed by
+`show-config`, included in the generated report, or passed as a process
+argument. `install-cli.sh --config FILE` copies it into the installed private
+configuration directory with mode `0600`.
+
+The client sends the report with bearer authentication and its expected
+SHA-256 digest. The server rejects unauthorized, oversized, incomplete,
+hash-mismatched, or structurally invalid reports. A valid report atomically
+replaces the previous HTML file, and the response returns the stored digest for
+client verification.
+
+The upload endpoint is disabled unless the server is installed with a token:
+
+```bash
+sudo ./install.sh --upload-token-file /path/to/private-upload-token
+```
+
+The server API provides:
+
+- `POST /api/v1/report`: authenticated report publication.
+- `GET /api/v1/status`: current report size, modification time, and SHA-256.
+- `GET /health`: server and index availability.
+
+Bearer authentication does not encrypt plain HTTP. Use this mode only on a
+trusted LAN or VPN, or place the server behind an HTTPS reverse proxy. SSH
+publication remains available where its encrypted transport and key management
+are preferred.
+
 ## Failure Behavior
 
 - Concurrent refresh attempts fail without disturbing the running operation.
@@ -195,5 +242,6 @@ already a requirement of the included static server.
 - The CLI never restarts `homed`, writes to HomeKit SQLite files, or changes
   HomeKit accessories and automations.
 
-The current server remains a static file server. Browser-initiated refresh is
-outside this CLI version and would require an authenticated request/status API.
+Browser-initiated refresh remains outside this version. The API accepts a
+completed report from the macOS agent; it cannot access or extract the Mac's
+HomeKit database.

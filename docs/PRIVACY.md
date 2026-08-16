@@ -17,6 +17,7 @@ schedules. Generated files are sensitive by default.
 - theme assignments from a real home
 - private overrides from a real home
 - screenshots of the inspector from a real home
+- report upload tokens and token files
 
 These files are kept out of public commits.
 
@@ -46,6 +47,11 @@ Serving `homekit_inspector.html` from a Raspberry Pi or another LAN host does
 not make the report less sensitive. The served directory remains private, and
 the report is intended only for a trusted LAN or VPN rather than public DNS,
 port forwarding, or an unauthenticated internet-facing reverse proxy.
+
+Authenticated API publication keeps its bearer token in a separate `0600`
+file. The token must not be committed, embedded in generated HTML, or placed in
+the server's document root. Plain HTTP does not encrypt either the token or the
+report; use HTTPS when the transport network is not trusted.
 
 ## Homebridge Context
 

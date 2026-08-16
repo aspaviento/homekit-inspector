@@ -18,8 +18,8 @@ The project provides:
   Natural Lighting targets, and Eve/HomeKit predicate conditions.
 - A standalone HTML inspector with views for home layout, hubs, bridges,
   context sources, manufacturers, automations, scenes, and theme assignment.
-- An optional static LAN server for serving a generated inspector report from a
-  private host.
+- An optional LAN server for serving a generated inspector report and accepting
+  authenticated report updates from the macOS CLI.
 - Optional Homebridge context enrichment that adds traceable relationships
   without replacing the raw HomeKit data.
 - Local-only theme and override files for private household-specific metadata.
@@ -172,14 +172,15 @@ The launcher uses `python3` by default. Set `HOMEKIT_INSPECTOR_PYTHON` to an
 executable name or absolute path to select a specific compatible interpreter.
 
 Start from [examples/refresh-config.example.json](examples/refresh-config.example.json)
-and keep the real configuration outside version control. The CLI supports an
-atomic local-file publisher and an SSH publisher that uses the current user's
-existing SSH configuration and keys. It does not store SSH passwords.
+or [examples/refresh-config-http.example.json](examples/refresh-config-http.example.json),
+and keep the real configuration outside version control. The CLI supports
+authenticated HTTP API, atomic local-file, and SSH publication. It stores
+neither bearer tokens nor SSH passwords directly in its JSON configuration.
 
-The static LAN server does not need an API or a restart for CLI-driven
-publication. It reads the inspector file on every request with browser caching
-disabled, so the next browser reload sees the atomically replaced report. A
-future browser-initiated refresh would require a separate request/status API.
+The LAN server reads the inspector file on every request with browser caching
+disabled, so the next browser reload sees an atomically published report. The
+CLI can publish through its authenticated HTTP endpoint, SSH, or a local path.
+Browser-initiated refresh is intentionally outside this version.
 
 See [docs/REFRESH_CLI.md](docs/REFRESH_CLI.md) for the configuration schema,
 installation layout, publication behavior, and failure guarantees.
@@ -280,38 +281,58 @@ the HTML with `--theme-config`, and redeploy the generated HTML.
 ## Optional LAN Server
 
 The generated HTML can be served on a private LAN host such as a Raspberry Pi.
-The included server is static and read-only: it serves the generated
-`homekit_inspector.html` plus a small `/health` endpoint. It does not extract
-HomeKit data and does not write theme changes back to disk.
+The included server serves `homekit_inspector.html`, exposes health and report
+status endpoints, and can optionally accept authenticated report replacement.
+It does not extract HomeKit data, access HomeKit, or write theme changes back to
+disk.
 
-Install from a cloned checkout on the LAN host:
+Generate a shared token with at least 32 random characters, keep its copies
+outside version control with owner-only permissions, and transfer one copy
+securely to the LAN host. For example:
+
+```bash
+openssl rand -hex 32 > private-upload-token
+chmod 600 private-upload-token
+```
+
+Install from a cloned checkout on the LAN host using its token copy:
 
 ```bash
 sudo ./install.sh \
   --install-dir /opt/homekit-inspector \
   --data-dir /var/lib/homekit-inspector \
   --user pi \
-  --port 8099
+  --port 8099 \
+  --upload-token-file /path/to/private-upload-token
 ```
 
-Copy a private generated report into the data directory:
+Configure the macOS CLI with the corresponding API URL and its private token
+file. The CLI installer copies that token into its private configuration
+directory:
 
-```bash
-rsync -av local-output/homekit_inspector.html \
-  pi@raspberrypi.local:/var/lib/homekit-inspector/homekit_inspector.html
+```json
+{
+  "publish": {
+    "type": "http",
+    "url": "http://inspector-server.local:8099/api/v1/report",
+    "tokenFile": "/path/to/private-upload-token",
+    "healthUrl": "http://inspector-server.local:8099/health"
+  }
+}
 ```
 
-Start or restart the service:
+Start or restart the server and inspect its endpoints:
 
 ```bash
 sudo systemctl restart homekit-inspector.service
 curl http://raspberrypi.local:8099/health
+curl http://raspberrypi.local:8099/api/v1/status
 ```
 
 The server is intended for trusted LAN or VPN access only; real home reports
-are not public internet artifacts. Because the served inspector is a static
-HTML report, the LAN view reflects the exported JSON and regenerated HTML that
-were last copied to the server.
+are not public internet artifacts. Bearer authentication prevents unauthorized
+replacement but plain HTTP does not encrypt the token or report. Use an HTTPS
+reverse proxy when the network itself is not trusted.
 
 ## Private Overrides
 
@@ -370,6 +391,7 @@ homekit-inspector/
 │   ├── homebridge-context.example.json
 │   ├── private-overrides.example.json
 │   ├── refresh-config.example.json
+│   ├── refresh-config-http.example.json
 │   ├── theme-config.example.json
 │   └── sample_output.json
 ├── scripts/

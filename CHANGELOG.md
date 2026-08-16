@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added authenticated HTTP report publication with SHA-256 verification,
+  upload limits, structural validation, atomic replacement, and report status.
+- Added private upload-token migration and optional server installer support
+  while retaining local and SSH publication modes.
 - Added a user-scoped CLI installer with private configuration migration,
   repeatable code updates, a stable command path, and a safe uninstaller that
   preserves private data by default.

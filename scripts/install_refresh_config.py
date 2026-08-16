@@ -40,15 +40,21 @@ def display_path(path: Path) -> str:
         return str(path.resolve())
 
 
-def serialized_publish(config: RefreshConfig) -> dict:
+def serialized_publish(config: RefreshConfig, installed_token_file: str | None = None) -> dict:
     publish = {
         "type": config.publish.kind,
-        "path": str(config.publish.path),
+        "requestTimeoutSeconds": config.publish.request_timeout_seconds,
         "healthUrl": config.publish.health_url,
         "healthTimeoutSeconds": config.publish.health_timeout_seconds,
     }
+    if config.publish.path is not None:
+        publish["path"] = str(config.publish.path)
     if config.publish.host:
         publish["host"] = config.publish.host
+    if config.publish.url:
+        publish["url"] = config.publish.url
+    if installed_token_file:
+        publish["tokenFile"] = installed_token_file
     return publish
 
 
@@ -75,12 +81,18 @@ def install_config(source: Path, destination: Path, replace: bool = False) -> st
         atomic_copy(input_path, installed_path, mode=0o600)
         installed_inputs[json_key] = f"config/{filename}"
 
+    installed_token_file = None
+    if config.publish.token_file is not None:
+        token_filename = "publish-token"
+        atomic_copy(config.publish.token_file, inputs_dir / token_filename, mode=0o600)
+        installed_token_file = f"config/{token_filename}"
+
     payload = {
         "version": 1,
         "database": display_path(config.database),
         "workingDirectory": "output",
         "inputs": installed_inputs,
-        "publish": serialized_publish(config),
+        "publish": serialized_publish(config, installed_token_file),
         "verbose": config.verbose,
     }
     atomic_write_json(destination, payload)

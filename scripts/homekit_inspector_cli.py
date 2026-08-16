@@ -45,6 +45,11 @@ class RefreshError(RuntimeError):
     """Raised when extraction, generation, publication, or verification fails."""
 
 
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 @dataclass(frozen=True)
 class InputConfig:
     theme_config: Path | None = None
@@ -55,8 +60,11 @@ class InputConfig:
 @dataclass(frozen=True)
 class PublishConfig:
     kind: str
-    path: Path | str
+    path: Path | str | None = None
     host: str | None = None
+    url: str | None = None
+    token_file: Path | None = None
+    request_timeout_seconds: float = 30.0
     health_url: str | None = None
     health_timeout_seconds: float = 5.0
 
@@ -109,6 +117,22 @@ def optional_path(value, label: str, base: Path) -> Path | None:
     return resolve_path(value, base)
 
 
+def validated_http_url(value, label: str) -> str:
+    parsed = urlparse(value) if isinstance(value, str) else None
+    if (
+        parsed is None
+        or parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.fragment
+    ):
+        raise ConfigError(
+            f"{label} must be an http or https URL without credentials or fragments"
+        )
+    return value
+
+
 def load_config(path: Path) -> RefreshConfig:
     config_path = path.expanduser().resolve()
     try:
@@ -154,24 +178,25 @@ def load_config(path: Path) -> RefreshConfig:
     publish_raw = require_mapping(raw.get("publish"), "publish")
     reject_unknown_keys(
         publish_raw,
-        {"type", "host", "path", "healthUrl", "healthTimeoutSeconds"},
+        {
+            "type",
+            "host",
+            "path",
+            "url",
+            "tokenFile",
+            "requestTimeoutSeconds",
+            "healthUrl",
+            "healthTimeoutSeconds",
+        },
         "publish",
     )
     kind = publish_raw.get("type")
-    if kind not in {"local", "ssh"}:
-        raise ConfigError("publish.type must be 'local' or 'ssh'")
+    if kind not in {"local", "ssh", "http"}:
+        raise ConfigError("publish.type must be 'local', 'ssh', or 'http'")
     publish_path = publish_raw.get("path")
-    if not isinstance(publish_path, str) or not publish_path.strip():
-        raise ConfigError("publish.path must be a non-empty path string")
     health_url = publish_raw.get("healthUrl")
     if health_url is not None:
-        parsed_health_url = urlparse(health_url) if isinstance(health_url, str) else None
-        if (
-            parsed_health_url is None
-            or parsed_health_url.scheme not in {"http", "https"}
-            or not parsed_health_url.netloc
-        ):
-            raise ConfigError("publish.healthUrl must be an http or https URL")
+        health_url = validated_http_url(health_url, "publish.healthUrl")
     timeout = publish_raw.get("healthTimeoutSeconds", 5)
     if (
         isinstance(timeout, bool)
@@ -179,13 +204,30 @@ def load_config(path: Path) -> RefreshConfig:
         or not 0 < timeout <= 60
     ):
         raise ConfigError("publish.healthTimeoutSeconds must be between 0 and 60")
+    request_timeout = publish_raw.get("requestTimeoutSeconds", 30)
+    if (
+        isinstance(request_timeout, bool)
+        or not isinstance(request_timeout, (int, float))
+        or not 0 < request_timeout <= 300
+    ):
+        raise ConfigError("publish.requestTimeoutSeconds must be between 0 and 300")
 
     host = publish_raw.get("host")
+    publish_url = publish_raw.get("url")
+    token_file_raw = publish_raw.get("tokenFile")
+    resolved_publish_path: Path | str | None = None
+    token_file: Path | None = None
     if kind == "local":
-        if host is not None:
-            raise ConfigError("publish.host is only valid for publish.type 'ssh'")
-        resolved_publish_path: Path | str = resolve_path(publish_path, base)
-    else:
+        if host is not None or publish_url is not None or token_file_raw is not None:
+            raise ConfigError("local publication does not support host, url, or tokenFile")
+        if not isinstance(publish_path, str) or not publish_path.strip():
+            raise ConfigError("publish.path must be a non-empty path string")
+        resolved_publish_path = resolve_path(publish_path, base)
+    elif kind == "ssh":
+        if publish_url is not None or token_file_raw is not None:
+            raise ConfigError("SSH publication does not support publish.url or tokenFile")
+        if not isinstance(publish_path, str) or not publish_path.strip():
+            raise ConfigError("publish.path must be a non-empty path string")
         if (
             not isinstance(host, str)
             or host.startswith("-")
@@ -197,6 +239,13 @@ def load_config(path: Path) -> RefreshConfig:
                 "SSH publish.path must be absolute and contain only letters, numbers, '.', '_', '-', and '/'"
             )
         resolved_publish_path = publish_path
+    else:
+        if host is not None or publish_path is not None:
+            raise ConfigError("HTTP publication does not support host or path")
+        publish_url = validated_http_url(publish_url, "publish.url")
+        token_file = optional_path(token_file_raw, "publish.tokenFile", base)
+        if token_file is None:
+            raise ConfigError("publish.tokenFile is required for HTTP publication")
 
     verbose = raw.get("verbose", False)
     if not isinstance(verbose, bool):
@@ -210,6 +259,9 @@ def load_config(path: Path) -> RefreshConfig:
             kind=kind,
             path=resolved_publish_path,
             host=host,
+            url=publish_url,
+            token_file=token_file,
+            request_timeout_seconds=float(request_timeout),
             health_url=health_url,
             health_timeout_seconds=float(timeout),
         ),
@@ -231,6 +283,26 @@ def validate_config(config: RefreshConfig, require_database: bool = True) -> Non
         for executable in ("rsync", "ssh"):
             if shutil.which(executable) is None:
                 raise ConfigError(f"Required executable not found: {executable}")
+    if config.publish.kind == "http":
+        if config.publish.token_file is None or not config.publish.token_file.is_file():
+            raise ConfigError(
+                f"HTTP publication token is not readable: {config.publish.token_file}"
+            )
+        read_publish_token(config.publish.token_file)
+        if config.publish.token_file.stat().st_mode & 0o077:
+            raise ConfigError("HTTP publication token must use owner-only permissions")
+
+
+def read_publish_token(path: Path) -> str:
+    try:
+        token = path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise ConfigError(f"HTTP publication token is not readable: {path}") from exc
+    if len(token) < 32:
+        raise ConfigError("HTTP publication token must contain at least 32 characters")
+    if any(character.isspace() for character in token):
+        raise ConfigError("HTTP publication token must not contain whitespace")
+    return token
 
 
 def atomic_write_json(path: Path, payload: dict) -> None:
@@ -365,17 +437,49 @@ def remote_sha256(host: str, path: str, verbose: bool = False) -> str:
 def publish_report(config: PublishConfig, report_path: Path, verbose: bool = False) -> str:
     expected_hash = sha256_file(report_path)
     if config.kind == "local":
+        if config.path is None:
+            raise RefreshError("Local publication path is not configured")
         destination = Path(config.path)
         atomic_copy(report_path, destination, mode=0o644)
         actual_hash = sha256_file(destination)
-    else:
+    elif config.kind == "ssh":
         host = config.host or ""
-        destination = str(config.path)
+        destination = str(config.path or "")
         run_command(
             ["rsync", "-a", "--checksum", "--", str(report_path), f"{host}:{destination}"],
             verbose=verbose,
         )
         actual_hash = remote_sha256(host, destination, verbose=verbose)
+    else:
+        if not config.url or config.token_file is None:
+            raise RefreshError("HTTP publication is not fully configured")
+        try:
+            token = read_publish_token(config.token_file)
+            content = report_path.read_bytes()
+        except OSError as exc:
+            raise RefreshError(f"Unable to read HTTP publication input: {exc}") from exc
+        request = urllib.request.Request(
+            config.url,
+            data=content,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "text/html; charset=utf-8",
+                "X-Report-SHA256": expected_hash,
+                "Accept": "application/json",
+            },
+        )
+        try:
+            opener = urllib.request.build_opener(NoRedirectHandler())
+            with opener.open(request, timeout=config.request_timeout_seconds) as response:
+                payload = json.load(response)
+        except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+            raise RefreshError(f"HTTP publication failed: {exc}") from exc
+        if not isinstance(payload, dict) or payload.get("ok") is not True:
+            raise RefreshError("HTTP publication did not return ok=true")
+        actual_hash = payload.get("sha256")
+        if not isinstance(actual_hash, str):
+            raise RefreshError("HTTP publication did not return a report hash")
     if actual_hash != expected_hash:
         raise RefreshError("Published report hash does not match generated report")
     return actual_hash
@@ -503,7 +607,12 @@ def print_config(config_path: Path, config: RefreshConfig) -> int:
         "publish": {
             "type": config.publish.kind,
             "host": config.publish.host,
-            "path": str(config.publish.path),
+            "path": str(config.publish.path) if config.publish.path is not None else None,
+            "url": config.publish.url,
+            "tokenFile": (
+                str(config.publish.token_file) if config.publish.token_file else None
+            ),
+            "requestTimeoutSeconds": config.publish.request_timeout_seconds,
             "healthUrl": config.publish.health_url,
             "healthTimeoutSeconds": config.publish.health_timeout_seconds,
         },

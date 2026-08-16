@@ -17,6 +17,7 @@ from scripts.homekit_inspector_cli import (
     load_config,
     publish_report,
     sha256_file,
+    validate_config,
     validate_generated_output,
 )
 
@@ -81,6 +82,68 @@ class HomeKitInspectorCliTests(unittest.TestCase):
             )
             with self.assertRaises(ConfigError):
                 load_config(path)
+
+    def test_loads_http_config_and_resolves_token_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            config = load_config(
+                self.write_config(
+                    root,
+                    {
+                        "version": 1,
+                        "publish": {
+                            "type": "http",
+                            "url": "https://inspector.example/api/v1/report",
+                            "tokenFile": "secrets/upload-token",
+                        },
+                    },
+                )
+            )
+            self.assertEqual(config.publish.kind, "http")
+            self.assertEqual(
+                config.publish.url, "https://inspector.example/api/v1/report"
+            )
+            self.assertEqual(config.publish.token_file, root / "secrets/upload-token")
+            self.assertIsNone(config.publish.path)
+
+    def test_rejects_http_url_with_embedded_credentials(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            path = self.write_config(
+                root,
+                {
+                    "version": 1,
+                    "publish": {
+                        "type": "http",
+                        "url": "https://user:secret@inspector.example/api/v1/report",
+                        "tokenFile": "upload-token",
+                    },
+                },
+            )
+            with self.assertRaises(ConfigError):
+                load_config(path)
+
+    def test_http_validation_rejects_non_private_token_permissions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            token = root / "upload-token"
+            token.write_text("x" * 32, encoding="utf-8")
+            token.chmod(0o644)
+            config = load_config(
+                self.write_config(
+                    root,
+                    {
+                        "version": 1,
+                        "publish": {
+                            "type": "http",
+                            "url": "https://inspector.example/api/v1/report",
+                            "tokenFile": "upload-token",
+                        },
+                    },
+                )
+            )
+            with self.assertRaisesRegex(ConfigError, "owner-only permissions"):
+                validate_config(config, require_database=False)
 
     def test_local_publish_is_hash_verified(self):
         with tempfile.TemporaryDirectory() as tmp:
