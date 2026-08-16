@@ -1,7 +1,17 @@
 #!/bin/sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SOURCE=$0
+while [ -L "$SOURCE" ]; do
+    SOURCE_DIR=$(CDPATH='' cd -P -- "$(dirname -- "$SOURCE")" && pwd)
+    LINK_TARGET=$(readlink "$SOURCE")
+    case "$LINK_TARGET" in
+        /*) SOURCE=$LINK_TARGET ;;
+        *) SOURCE=$SOURCE_DIR/$LINK_TARGET ;;
+    esac
+done
+
+SCRIPT_DIR=$(CDPATH='' cd -P -- "$(dirname -- "$SOURCE")" && pwd)
 PROJECT_ROOT=$(dirname -- "$SCRIPT_DIR")
 PYTHON_BIN=${HOMEKIT_INSPECTOR_PYTHON:-python3}
 

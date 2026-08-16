@@ -122,6 +122,37 @@ export, making it easier to tell when a static report was captured.
 The refresh CLI runs extraction, generation, validation, and publication as one
 locked operation driven by a private JSON configuration file:
 
+Install it for the current macOS user and migrate an existing private
+configuration:
+
+```bash
+./install-cli.sh --config /path/to/private-refresh-config.json
+```
+
+The default installation uses:
+
+```text
+~/.local/bin/homekit-inspector
+~/Library/Application Support/HomeKit Inspector/app
+~/Library/Application Support/HomeKit Inspector/config.json
+~/Library/Application Support/HomeKit Inspector/output
+```
+
+Add `~/.local/bin` to `PATH` when it is not already present. The installed
+command can then run from any directory without an explicit configuration path:
+
+```bash
+homekit-inspector validate-config
+homekit-inspector refresh
+homekit-inspector status
+```
+
+Rerunning `install-cli.sh` updates the installed code while preserving private
+configuration and outputs. Pass `--config FILE --replace-config` only when the
+installed configuration should also be replaced.
+
+The repository-local launcher remains available for development:
+
 ```bash
 bin/homekit-inspector validate-config \
   --config /path/to/private-refresh-config.json
@@ -147,7 +178,16 @@ disabled, so the next browser reload sees the atomically replaced report. A
 future browser-initiated refresh would require a separate request/status API.
 
 See [docs/REFRESH_CLI.md](docs/REFRESH_CLI.md) for the configuration schema,
-publication behavior, and failure guarantees.
+installation layout, publication behavior, and failure guarantees.
+
+Uninstall the command and code while preserving private data:
+
+```bash
+./uninstall-cli.sh
+```
+
+Private configuration and outputs are removed only with the explicit
+`--remove-private-data` option.
 
 To generate a demo from the synthetic example without reading a local HomeKit
 database:
@@ -334,6 +374,8 @@ homekit-inspector/
 │   ├── generate_homekit_reports.py
 │   ├── homekit_inspector_cli.py
 │   └── generate_inspector.py
+├── install-cli.sh               # User-scoped CLI installation and updates
+└── uninstall-cli.sh             # Safe removal, preserving private data by default
 ```
 
 ## Demo Assets
