@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added a configuration-driven refresh CLI with locking, temporary generation,
+  validation, status reporting, atomic local publication, and hash-verified SSH
+  publication.
 - Added independent contextual filters to Home Layout, Bridges, Manufacturers,
   Capabilities, Scenes, and Theme Editor while retaining the existing
   Automations filters.

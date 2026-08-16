@@ -117,6 +117,35 @@ embeds the extracted HomeKit data, so real-home reports belong in private local
 storage. The inspector header shows the extraction timestamp from the source
 export, making it easier to tell when a static report was captured.
 
+## Repeatable Refresh CLI
+
+The refresh CLI runs extraction, generation, validation, and publication as one
+locked operation driven by a private JSON configuration file:
+
+```bash
+python3 scripts/homekit_inspector_cli.py validate-config \
+  --config /path/to/private-refresh-config.json
+
+python3 scripts/homekit_inspector_cli.py refresh \
+  --config /path/to/private-refresh-config.json
+
+python3 scripts/homekit_inspector_cli.py status \
+  --config /path/to/private-refresh-config.json
+```
+
+Start from [examples/refresh-config.example.json](examples/refresh-config.example.json)
+and keep the real configuration outside version control. The CLI supports an
+atomic local-file publisher and an SSH publisher that uses the current user's
+existing SSH configuration and keys. It does not store SSH passwords.
+
+The static LAN server does not need an API or a restart for CLI-driven
+publication. It reads the inspector file on every request with browser caching
+disabled, so the next browser reload sees the atomically replaced report. A
+future browser-initiated refresh would require a separate request/status API.
+
+See [docs/REFRESH_CLI.md](docs/REFRESH_CLI.md) for the configuration schema,
+publication behavior, and failure guarantees.
+
 To generate a demo from the synthetic example without reading a local HomeKit
 database:
 
@@ -286,17 +315,20 @@ homekit-inspector/
 ├── docs/
 │   ├── EXPLORER.md              # Inspector and context-source details
 │   ├── PRIVACY.md               # Sensitive-data and publishing checklist
+│   ├── REFRESH_CLI.md           # Repeatable refresh and publication workflow
 │   ├── SCHEMA.md                # homed CoreData schema notes
 │   └── TECHNICAL_APPROACH.md    # Scope, pipeline, and design boundaries
 ├── examples/
 │   ├── homebridge-context.example.json
 │   ├── private-overrides.example.json
+│   ├── refresh-config.example.json
 │   ├── theme-config.example.json
 │   └── sample_output.json
 ├── scripts/
 │   ├── homed_extract.py
 │   ├── generate_condition_diagnostics.py
 │   ├── generate_homekit_reports.py
+│   ├── homekit_inspector_cli.py
 │   └── generate_inspector.py
 ```
 

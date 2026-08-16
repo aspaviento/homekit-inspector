@@ -54,6 +54,9 @@ homekit_merged.json
 core.entity_registry
 homekit_automations_converted.yaml
 homekit_shortcut_automations.yaml
+homekit_refresh_config.json
+homebridge_config.json
+homebridge-config.json
 *.backup
 
 # Environment
