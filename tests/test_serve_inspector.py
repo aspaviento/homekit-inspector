@@ -57,11 +57,12 @@ def running_server(
     tls_cert: Path | None = None,
     tls_key: Path | None = None,
     capture: dict | None = None,
+    auth_header: str = "",
 ):
     server = InspectorServer(("127.0.0.1", 0), SilentInspectorHandler)
     server.root = root
     server.index_name = DEFAULT_INDEX
-    server.auth_header = ""
+    server.auth_header = auth_header
     server.publish_secret = secret
     server.max_upload_bytes = max_bytes
     server.upload_lock = threading.Lock()
@@ -115,26 +116,62 @@ def signed_upload(
 
 
 class ServeInspectorTests(unittest.TestCase):
-    def test_viewer_credentials_are_loaded_from_private_files(self):
+    def test_viewer_credentials_are_loaded_from_private_server_config(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            username = root / "view-username"
-            password = root / "view-password"
-            username.write_text("inspector\n", encoding="utf-8")
-            password.write_text("cd" * 32 + "\n", encoding="ascii")
-            username.chmod(0o600)
-            password.chmod(0o600)
+            config = root / "server.json"
+            config.write_text(
+                json.dumps(
+                    {"viewer": {"username": "admin", "password": "admin"}}
+                ),
+                encoding="utf-8",
+            )
+            config.chmod(0o600)
             with patch.dict(
                 "os.environ",
-                {
-                    "HOMEKIT_INSPECTOR_VIEW_USERNAME_FILE": str(username),
-                    "HOMEKIT_INSPECTOR_VIEW_PASSWORD_FILE": str(password),
-                },
+                {"HOMEKIT_INSPECTOR_SERVER_CONFIG": str(config)},
                 clear=False,
             ):
                 header = build_auth_header()
             decoded = base64.b64decode(header.removeprefix("Basic ")).decode("utf-8")
-            self.assertEqual(decoded, "inspector:" + "cd" * 32)
+            self.assertEqual(decoded, "admin:admin")
+
+    def test_server_config_rejects_insecure_permissions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "server.json"
+            config.write_text(
+                '{"viewer":{"username":"admin","password":"admin"}}\n',
+                encoding="utf-8",
+            )
+            config.chmod(0o644)
+            with patch.dict(
+                "os.environ",
+                {"HOMEKIT_INSPECTOR_SERVER_CONFIG": str(config)},
+                clear=False,
+            ):
+                with self.assertRaisesRegex(SystemExit, "must not be"):
+                    build_auth_header()
+
+    def test_http_basic_challenge_uses_server_config_credentials(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            (root / DEFAULT_INDEX).write_bytes(VALID_REPORT)
+            token = base64.b64encode(b"admin:admin").decode("ascii")
+            auth_header = f"Basic {token}"
+            with running_server(root, auth_header=auth_header) as base_url:
+                with self.assertRaises(error.HTTPError) as raised:
+                    request.urlopen(f"{base_url}/")
+                authenticated = request.Request(
+                    f"{base_url}/", headers={"Authorization": auth_header}
+                )
+                with request.urlopen(authenticated) as response:
+                    content = response.read()
+            self.assertEqual(raised.exception.code, 401)
+            self.assertEqual(
+                raised.exception.headers["WWW-Authenticate"],
+                'Basic realm="HomeKit Inspector"',
+            )
+            self.assertEqual(content, VALID_REPORT)
 
     def test_plain_http_is_limited_to_loopback(self):
         validate_transport(

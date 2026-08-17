@@ -62,14 +62,26 @@ ca.pem           CA certificate used by the macOS client
 server-cert.pem  TLS certificate deployed to the server
 server-key.pem   TLS private key deployed to the server
 publish-secret   Shared HMAC secret stored on the server and macOS client
-view-password    Separate browser password deployed only to the server
+server.json      Private HTTP Basic viewer configuration
 ```
 
 Store this directory outside the repository. Transfer only
-`server-cert.pem`, `server-key.pem`, `publish-secret`, and `view-password` to
+`server-cert.pem`, `server-key.pem`, `publish-secret`, and `server.json` to
 the server through a secure administrative channel. Keep a `0600` copy of
-`ca.pem` and `publish-secret` for the macOS client. The publication secret and
-viewer password are deliberately different.
+`ca.pem` and `publish-secret` for the macOS client.
+
+The generated `server.json` contains the initial credentials:
+
+```json
+{
+  "viewer": {
+    "username": "admin",
+    "password": "admin"
+  }
+}
+```
+
+Change these values before exposing the server outside a trusted network.
 
 For an internet-facing hostname, a certificate from a publicly trusted CA or a
 well-maintained HTTPS reverse proxy is preferable to the private-CA example.
@@ -87,8 +99,7 @@ sudo ./install-server.sh \
   --publish-secret-file /path/to/publish-secret \
   --tls-cert-file /path/to/server-cert.pem \
   --tls-key-file /path/to/server-key.pem \
-  --view-username inspector \
-  --view-password-file /path/to/view-password
+  --server-config-file /path/to/server.json
 ```
 
 The installer:
@@ -98,8 +109,19 @@ The installer:
 - stores the served report under `/var/lib/homekit-inspector` by default;
 - installs code and private material as root-owned files, with private files
   readable but not writable by the service group;
+- installs the supplied server configuration as
+  `/etc/homekit-inspector/server.json` with mode `0640`;
 - installs and enables `homekit-inspector.service`;
-- preserves already installed credentials during code-only updates.
+- preserves an already installed `server.json` during code-only updates.
+
+When `--server-config-file` is omitted on a new installation, the installer
+creates `/etc/homekit-inspector/server.json` with `admin/admin`. To change the
+credentials later, edit that file as root and restart the service:
+
+```bash
+sudoedit /etc/homekit-inspector/server.json
+sudo systemctl restart homekit-inspector.service
+```
 
 By default, the service runs as the non-root user that invoked `sudo`. An
 existing unprivileged account can be selected with `--user`; root is rejected.
@@ -191,6 +213,8 @@ use the loopback upstream address.
 - Keep the operating system, Python, TLS library, and reverse proxy patched.
 - Back up neither `publish-secret` nor private keys into public repositories.
 - Rotate the publication secret after suspected disclosure.
+- Replace the initial `admin/admin` viewer credentials on any network that is
+  not fully trusted.
 - Rotate certificates before expiry and retain the CA key offline.
 - Review `/api/v1/status` and the CLI's returned SHA-256 after publication.
 - Keep server and Mac clocks synchronized; signed requests allow a five-minute

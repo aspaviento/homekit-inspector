@@ -17,8 +17,7 @@ Environment=HOMEKIT_INSPECTOR_PUBLISH_SECRET_FILE=
 Environment=HOMEKIT_INSPECTOR_MAX_UPLOAD_BYTES=20971520
 Environment=HOMEKIT_INSPECTOR_TLS_CERT_FILE=
 Environment=HOMEKIT_INSPECTOR_TLS_KEY_FILE=
-Environment=HOMEKIT_INSPECTOR_VIEW_USERNAME_FILE=
-Environment=HOMEKIT_INSPECTOR_VIEW_PASSWORD_FILE=
+Environment=HOMEKIT_INSPECTOR_SERVER_CONFIG=/etc/homekit-inspector/server.json
 Environment=HOMEKIT_INSPECTOR_ALLOW_UNAUTHENTICATED_VIEW=false
 ExecStart=/usr/bin/python3 /opt/homekit-inspector/scripts/serve_inspector.py
 Restart=on-failure

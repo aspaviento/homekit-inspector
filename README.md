@@ -294,9 +294,14 @@ sudo ./install-server.sh \
   --publish-secret-file /path/to/publish-secret \
   --tls-cert-file /path/to/server-cert.pem \
   --tls-key-file /path/to/server-key.pem \
-  --view-username inspector \
-  --view-password-file /path/to/view-password
+  --server-config-file /path/to/server.json
 ```
+
+The installer creates `/etc/homekit-inspector/server.json` with initial
+`admin/admin` viewer credentials when no configuration is supplied. Edit that
+root-owned file and restart the service to choose different HTTP Basic
+credentials. The defaults are intended only for initial access on a trusted
+network.
 
 Configure the client with `server` publication:
 

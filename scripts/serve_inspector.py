@@ -417,33 +417,39 @@ def report_status(path: Path) -> dict:
 
 
 def build_auth_header() -> str:
-    username_path = os.getenv("HOMEKIT_INSPECTOR_VIEW_USERNAME_FILE", "")
-    password_path = os.getenv("HOMEKIT_INSPECTOR_VIEW_PASSWORD_FILE", "")
-    if not username_path and not password_path:
+    raw_path = os.getenv("HOMEKIT_INSPECTOR_SERVER_CONFIG", "")
+    if not raw_path:
         return ""
-    if not username_path or not password_path:
-        raise SystemExit(
-            "Set both HOMEKIT_INSPECTOR_VIEW_USERNAME_FILE and HOMEKIT_INSPECTOR_VIEW_PASSWORD_FILE"
-        )
+    path = Path(raw_path).expanduser().resolve()
     try:
-        username = Path(username_path).read_text(encoding="utf-8").strip()
-        password = Path(password_path).read_text(encoding="ascii").strip()
+        config = json.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:
-        raise SystemExit(f"Unable to read viewer credentials: {exc}") from exc
+        raise SystemExit(f"Unable to read server configuration: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid JSON in server configuration: {exc}") from exc
+    require_server_private_file(path, "Server configuration")
+    if not isinstance(config, dict) or not isinstance(config.get("viewer"), dict):
+        raise SystemExit("Server configuration must contain a viewer object")
+    username = config["viewer"].get("username")
+    password = config["viewer"].get("password")
     if (
-        not username
+        not isinstance(username, str)
+        or not username
         or ":" in username
         or any(character.isspace() for character in username)
     ):
         raise SystemExit(
             "Viewer username must be non-empty and contain no colon or whitespace"
         )
-    if not SECRET_PATTERN.fullmatch(password):
+    if (
+        not isinstance(password, str)
+        or not password
+        or len(password) > 256
+        or any(ord(character) < 32 or ord(character) == 127 for character in password)
+    ):
         raise SystemExit(
-            "Viewer password file must contain exactly 64 lowercase hex characters"
+            "Viewer password must contain 1 to 256 characters without control characters"
         )
-    for path in (Path(username_path), Path(password_path)):
-        require_server_private_file(path, "Viewer credential file")
     token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
     return f"Basic {token}"
 

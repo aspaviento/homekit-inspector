@@ -6,14 +6,14 @@ SCRIPTPATH=$(CDPATH='' cd -- "$(dirname -- "$SCRIPT")" && pwd)
 
 INSTALL_DIR="/opt/homekit-inspector"
 DATA_DIR="/var/lib/homekit-inspector"
+CONFIG_DIR="/etc/homekit-inspector"
+SERVER_CONFIG_SOURCE=""
 INSTALL_USER="${SUDO_USER:-$USER}"
 HOST="0.0.0.0"
 PORT="8099"
 PUBLISH_SECRET_SOURCE=""
 TLS_CERT_SOURCE=""
 TLS_KEY_SOURCE=""
-VIEW_USERNAME=""
-VIEW_PASSWORD_SOURCE=""
 ALLOW_UNAUTHENTICATED_VIEW=false
 MAX_UPLOAD_BYTES="20971520"
 DEVELOPMENT=false
@@ -32,9 +32,8 @@ Options:
                            Enable signed report publication using this secret
       --tls-cert-file FILE TLS server certificate or certificate chain
       --tls-key-file FILE  TLS private key
-      --view-username USER  Username required to view the report
-      --view-password-file FILE
-                           File containing a 64-character random hex password
+      --server-config-file FILE
+                           Private JSON server configuration (default: admin/admin)
       --allow-unauthenticated-view
                            Allow network viewing without authentication
       --max-upload-bytes N Maximum report upload size (default: 20971520)
@@ -53,8 +52,7 @@ while [ $# -gt 0 ]; do
         --publish-secret-file) shift; PUBLISH_SECRET_SOURCE="$1" ;;
         --tls-cert-file) shift; TLS_CERT_SOURCE="$1" ;;
         --tls-key-file) shift; TLS_KEY_SOURCE="$1" ;;
-        --view-username) shift; VIEW_USERNAME="$1" ;;
-        --view-password-file) shift; VIEW_PASSWORD_SOURCE="$1" ;;
+        --server-config-file) shift; SERVER_CONFIG_SOURCE="$1" ;;
         --allow-unauthenticated-view) ALLOW_UNAUTHENTICATED_VIEW=true ;;
         --max-upload-bytes) shift; MAX_UPLOAD_BYTES="$1" ;;
         -d|--development) DEVELOPMENT=true ;;
@@ -76,7 +74,7 @@ if ! [[ "$HOST" =~ ^[A-Za-z0-9.:-]+$ ]]; then
     echo "--host contains unsupported characters" >&2
     exit 2
 fi
-for configured_path in "$INSTALL_DIR" "$DATA_DIR"; do
+for configured_path in "$INSTALL_DIR" "$DATA_DIR" "$CONFIG_DIR"; do
     if ! [[ "$configured_path" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
         echo "Installation paths must be absolute and contain only safe characters" >&2
         exit 2
@@ -109,27 +107,15 @@ if { [ -n "$TLS_CERT_SOURCE" ] && [ -z "$TLS_KEY_SOURCE" ]; } || \
     echo "--tls-cert-file and --tls-key-file must be provided together" >&2
     exit 2
 fi
-if { [ -n "$VIEW_USERNAME" ] && [ -z "$VIEW_PASSWORD_SOURCE" ]; } || \
-   { [ -z "$VIEW_USERNAME" ] && [ -n "$VIEW_PASSWORD_SOURCE" ]; }; then
-    echo "--view-username and --view-password-file must be provided together" >&2
+if [ -n "$SERVER_CONFIG_SOURCE" ] && [ ! -s "$SERVER_CONFIG_SOURCE" ]; then
+    echo "Server configuration file is missing or empty: $SERVER_CONFIG_SOURCE" >&2
     exit 2
 fi
-if [ -n "$VIEW_USERNAME" ] && ! [[ "$VIEW_USERNAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
-    echo "--view-username contains unsupported characters" >&2
+if [ -n "$SERVER_CONFIG_SOURCE" ] && ! HOMEKIT_INSPECTOR_SERVER_CONFIG="$SERVER_CONFIG_SOURCE" \
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$SCRIPTPATH" python3 -c \
+    'from scripts.serve_inspector import build_auth_header; build_auth_header()'; then
+    echo "Invalid server configuration: $SERVER_CONFIG_SOURCE" >&2
     exit 2
-fi
-if [ -n "$VIEW_PASSWORD_SOURCE" ]; then
-    if [ ! -s "$VIEW_PASSWORD_SOURCE" ] || ! python3 -c '
-import pathlib
-import re
-import sys
-
-password = pathlib.Path(sys.argv[1]).read_text(encoding="ascii").strip()
-raise SystemExit(0 if re.fullmatch(r"[0-9a-f]{64}", password) else 1)
-' "$VIEW_PASSWORD_SOURCE"; then
-        echo "Viewer password must contain exactly 64 lowercase hex characters" >&2
-        exit 2
-    fi
 fi
 for tls_file in "$TLS_CERT_SOURCE" "$TLS_KEY_SOURCE"; do
     if [ -n "$tls_file" ] && [ ! -s "$tls_file" ]; then
@@ -172,12 +158,6 @@ if [ "$DEVELOPMENT" = false ]; then
                 echo "Network serving requires --tls-cert-file and --tls-key-file" >&2
                 exit 2
             fi
-            if [ "$ALLOW_UNAUTHENTICATED_VIEW" = false ] && \
-               [ -z "$VIEW_USERNAME" ] && \
-               { [ ! -f "$INSTALL_DIR/view-username" ] || [ ! -f "$INSTALL_DIR/view-password" ]; }; then
-                echo "Network serving requires viewer credentials or --allow-unauthenticated-view" >&2
-                exit 2
-            fi
             ;;
     esac
 fi
@@ -196,6 +176,7 @@ fi
 
 install -d -m 0755 -o 0 -g 0 "$INSTALL_DIR"
 install -d -m 0750 -o "$INSTALL_USER" -g "$INSTALL_GROUP" "$DATA_DIR"
+install -d -m 0750 -o 0 -g "$INSTALL_GROUP" "$CONFIG_DIR"
 install -d -m 0755 -o 0 -g 0 "$INSTALL_DIR/scripts"
 install -m 0755 -o 0 -g 0 "$SCRIPTPATH/scripts/serve_inspector.py" "$INSTALL_DIR/scripts/serve_inspector.py"
 
@@ -226,21 +207,23 @@ else
     chmod 0640 "$TLS_KEY_PATH"
 fi
 
-VIEW_USERNAME_PATH="$INSTALL_DIR/view-username"
-VIEW_PASSWORD_PATH="$INSTALL_DIR/view-password"
-if [ -n "$VIEW_USERNAME" ]; then
-    VIEW_USERNAME_TEMP="$INSTALL_DIR/.view-username.$$"
-    printf '%s\n' "$VIEW_USERNAME" > "$VIEW_USERNAME_TEMP"
-    install -m 0640 -o 0 -g "$INSTALL_GROUP" "$VIEW_USERNAME_TEMP" "$VIEW_USERNAME_PATH"
-    rm -f "$VIEW_USERNAME_TEMP"
-    install -m 0640 -o 0 -g "$INSTALL_GROUP" "$VIEW_PASSWORD_SOURCE" "$VIEW_PASSWORD_PATH"
+SERVER_CONFIG_PATH="$CONFIG_DIR/server.json"
+if [ -n "$SERVER_CONFIG_SOURCE" ]; then
+    install -m 0640 -o 0 -g "$INSTALL_GROUP" "$SERVER_CONFIG_SOURCE" "$SERVER_CONFIG_PATH"
+elif [ ! -f "$SERVER_CONFIG_PATH" ]; then
+    SERVER_CONFIG_TEMP=$(mktemp)
+    printf '%s\n' '{"viewer":{"username":"admin","password":"admin"}}' > "$SERVER_CONFIG_TEMP"
+    install -m 0640 -o 0 -g "$INSTALL_GROUP" "$SERVER_CONFIG_TEMP" "$SERVER_CONFIG_PATH"
+    rm "$SERVER_CONFIG_TEMP"
 fi
-if [ ! -f "$VIEW_USERNAME_PATH" ] || [ ! -f "$VIEW_PASSWORD_PATH" ]; then
-    VIEW_USERNAME_PATH=""
-    VIEW_PASSWORD_PATH=""
-else
-    chown 0:"$INSTALL_GROUP" "$VIEW_USERNAME_PATH" "$VIEW_PASSWORD_PATH"
-    chmod 0640 "$VIEW_USERNAME_PATH" "$VIEW_PASSWORD_PATH"
+chown 0:"$INSTALL_GROUP" "$SERVER_CONFIG_PATH"
+chmod 0640 "$SERVER_CONFIG_PATH"
+if ! HOMEKIT_INSPECTOR_SERVER_CONFIG="$SERVER_CONFIG_PATH" \
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$SCRIPTPATH" \
+    python3 -c 'from scripts.serve_inspector import build_auth_header; build_auth_header()' \
+    2>/dev/null; then
+    echo "Invalid server configuration: $SERVER_CONFIG_PATH" >&2
+    exit 2
 fi
 if [ -z "$TLS_CERT_PATH" ]; then
     case "$HOST" in
@@ -253,6 +236,10 @@ if [ -z "$TLS_CERT_PATH" ]; then
 fi
 
 SERVICE_FILE=$(mktemp)
+ACTIVE_SERVER_CONFIG_PATH="$SERVER_CONFIG_PATH"
+if [ "$ALLOW_UNAUTHENTICATED_VIEW" = true ]; then
+    ACTIVE_SERVER_CONFIG_PATH=""
+fi
 sed \
     -e "s|^User=.*|User=$INSTALL_USER|g" \
     -e "s|^Group=.*|Group=$INSTALL_GROUP|g" \
@@ -264,8 +251,7 @@ sed \
     -e "s|^Environment=HOMEKIT_INSPECTOR_MAX_UPLOAD_BYTES=.*|Environment=HOMEKIT_INSPECTOR_MAX_UPLOAD_BYTES=$MAX_UPLOAD_BYTES|g" \
     -e "s|^Environment=HOMEKIT_INSPECTOR_TLS_CERT_FILE=.*|Environment=HOMEKIT_INSPECTOR_TLS_CERT_FILE=$TLS_CERT_PATH|g" \
     -e "s|^Environment=HOMEKIT_INSPECTOR_TLS_KEY_FILE=.*|Environment=HOMEKIT_INSPECTOR_TLS_KEY_FILE=$TLS_KEY_PATH|g" \
-    -e "s|^Environment=HOMEKIT_INSPECTOR_VIEW_USERNAME_FILE=.*|Environment=HOMEKIT_INSPECTOR_VIEW_USERNAME_FILE=$VIEW_USERNAME_PATH|g" \
-    -e "s|^Environment=HOMEKIT_INSPECTOR_VIEW_PASSWORD_FILE=.*|Environment=HOMEKIT_INSPECTOR_VIEW_PASSWORD_FILE=$VIEW_PASSWORD_PATH|g" \
+    -e "s|^Environment=HOMEKIT_INSPECTOR_SERVER_CONFIG=.*|Environment=HOMEKIT_INSPECTOR_SERVER_CONFIG=$ACTIVE_SERVER_CONFIG_PATH|g" \
     -e "s|^Environment=HOMEKIT_INSPECTOR_ALLOW_UNAUTHENTICATED_VIEW=.*|Environment=HOMEKIT_INSPECTOR_ALLOW_UNAUTHENTICATED_VIEW=$ALLOW_UNAUTHENTICATED_VIEW|g" \
     -e "s|^ExecStart=.*|ExecStart=/usr/bin/python3 $INSTALL_DIR/scripts/serve_inspector.py|g" \
     "$SCRIPTPATH/homekit-inspector.service" > "$SERVICE_FILE"
@@ -286,10 +272,14 @@ if [ -n "$TLS_CERT_PATH" ]; then
 else
     echo "TLS disabled"
 fi
-if [ -n "$VIEW_USERNAME_PATH" ]; then
-    echo "Viewer authentication enabled"
-elif [ "$ALLOW_UNAUTHENTICATED_VIEW" = true ]; then
+if [ "$ALLOW_UNAUTHENTICATED_VIEW" = true ]; then
     echo "Viewer authentication explicitly disabled"
+else
+    echo "Viewer authentication enabled using $SERVER_CONFIG_PATH"
+    if grep -q '"username"[[:space:]]*:[[:space:]]*"admin"' "$SERVER_CONFIG_PATH" && \
+       grep -q '"password"[[:space:]]*:[[:space:]]*"admin"' "$SERVER_CONFIG_PATH"; then
+        echo "WARNING: change the default admin/admin credentials before exposing the server outside a trusted network" >&2
+    fi
 fi
 echo "Place a generated homekit_inspector.html into $DATA_DIR, then run:"
 echo "  sudo systemctl restart homekit-inspector.service"

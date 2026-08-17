@@ -95,15 +95,16 @@ openssl x509 -req -sha256 -in "$WORK_DIR/server.csr" \
     -days "$DAYS" -extfile "$WORK_DIR/server-extensions.cnf" \
     -out "$WORK_DIR/server-cert.pem"
 openssl rand -hex 32 > "$WORK_DIR/publish-secret"
-openssl rand -hex 32 > "$WORK_DIR/view-password"
+printf '%s\n' '{"viewer":{"username":"admin","password":"admin"}}' > "$WORK_DIR/server.json"
 
 install -m 0600 "$WORK_DIR/ca-key.pem" "$OUTPUT_DIR/ca-key.pem"
 install -m 0600 "$WORK_DIR/ca.pem" "$OUTPUT_DIR/ca.pem"
 install -m 0600 "$WORK_DIR/server-key.pem" "$OUTPUT_DIR/server-key.pem"
 install -m 0644 "$WORK_DIR/server-cert.pem" "$OUTPUT_DIR/server-cert.pem"
 install -m 0600 "$WORK_DIR/publish-secret" "$OUTPUT_DIR/publish-secret"
-install -m 0600 "$WORK_DIR/view-password" "$OUTPUT_DIR/view-password"
+install -m 0600 "$WORK_DIR/server.json" "$OUTPUT_DIR/server.json"
 
 echo "Created HomeKit Inspector server credentials in $OUTPUT_DIR"
 echo "Keep ca-key.pem offline and do not copy it to the server."
 echo "Use ca.pem as publish.caFile on the macOS client."
+echo "WARNING: server.json uses admin/admin; change it before exposing the server outside a trusted network."
