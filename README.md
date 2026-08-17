@@ -302,6 +302,8 @@ The installer creates `/var/lib/homekit-inspector/server.json` with initial
 is owned by the service account with mode `0600`, so that account can edit the
 HTTP Basic credentials without root access. Restart the service after a
 change. The defaults are intended only for initial access on a trusted network.
+The server explicitly excludes this private configuration file from HTTP file
+serving even though it shares the report data directory.
 
 Configure the client with `server` publication:
 

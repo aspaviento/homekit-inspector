@@ -87,6 +87,10 @@ class InspectorHandler(SimpleHTTPRequestHandler):
     def publish_secret(self) -> bytes:
         return self.server.publish_secret
 
+    @property
+    def private_paths(self) -> set[Path]:
+        return self.server.private_paths
+
     def do_GET(self) -> None:
         if self.path == "/health":
             self.write_json(
@@ -107,6 +111,9 @@ class InspectorHandler(SimpleHTTPRequestHandler):
         target = safe_resolve(self.root, self.path)
         if not target:
             self.send_error(HTTPStatus.FORBIDDEN, "Forbidden")
+            return
+        if target in self.private_paths:
+            self.send_error(HTTPStatus.NOT_FOUND, "Not found")
             return
         if target.is_dir():
             target = target / self.index_name
@@ -227,6 +234,9 @@ class InspectorHandler(SimpleHTTPRequestHandler):
         if not self.check_auth():
             return
         target = safe_resolve(self.root, self.path)
+        if target in self.private_paths:
+            self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+            return
         if target and target.is_dir():
             target = target / self.index_name
         if not target or not target.is_file():
@@ -340,6 +350,7 @@ class InspectorServer(ThreadingHTTPServer):
     root: Path
     index_name: str
     auth_header: str
+    private_paths: set[Path]
     publish_secret: bytes
     max_upload_bytes: int
     upload_lock: threading.Lock
@@ -550,6 +561,10 @@ def main() -> None:
     server.root = root
     server.index_name = index_name
     server.auth_header = build_auth_header()
+    server_config = os.getenv("HOMEKIT_INSPECTOR_SERVER_CONFIG", "")
+    server.private_paths = (
+        {Path(server_config).expanduser().resolve()} if server_config else set()
+    )
     server.publish_secret = load_publish_secret()
     server.max_upload_bytes = env_int(
         "HOMEKIT_INSPECTOR_MAX_UPLOAD_BYTES", DEFAULT_MAX_UPLOAD_BYTES

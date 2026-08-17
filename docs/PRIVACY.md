@@ -18,6 +18,7 @@ schedules. Generated files are sensitive by default.
 - private overrides from a real home
 - screenshots of the inspector from a real home
 - publication secrets, viewer passwords, private CA keys, and TLS private keys
+- `/var/lib/homekit-inspector/server.json` or any copied server configuration
 
 These files are kept out of public commits.
 
@@ -52,6 +53,9 @@ Server publication keeps its HMAC secret in a separate `0600` file. The secret
 must not be committed, embedded in generated HTML, placed in the server's
 document root, passed as an argument, or transmitted. Server mode requires
 HTTPS for network transport and validates the server certificate and hostname.
+The report server also keeps readable HTTP Basic credentials in a service-owned
+`server.json` with mode `0600`. The file is explicitly blocked from HTTP
+serving and must not be copied to another served filename.
 
 ## Homebridge Context
 

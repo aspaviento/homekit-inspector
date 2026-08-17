@@ -82,6 +82,8 @@ The generated `server.json` contains the initial credentials:
 ```
 
 Change these values before exposing the server outside a trusted network.
+The file contains a readable password and must remain private; it is not a
+public example or a client configuration.
 
 For an internet-facing hostname, a certificate from a publicly trusted CA or a
 well-maintained HTTPS reverse proxy is preferable to the private-CA example.
@@ -123,6 +125,40 @@ account can edit that file directly; restart the service afterward:
 nano /var/lib/homekit-inspector/server.json
 sudo systemctl restart homekit-inspector.service
 ```
+
+Supplying `--server-config-file` copies that file into the data directory.
+Omitting the option during later code updates preserves the installed
+configuration. Supplying it again intentionally replaces the installed
+credentials.
+
+## Viewer Authentication
+
+Browser access uses the native HTTP Basic authentication dialog. The server
+accepts this configuration schema:
+
+```json
+{
+  "viewer": {
+    "username": "admin",
+    "password": "admin"
+  }
+}
+```
+
+The username must be non-empty and cannot contain whitespace or a colon. The
+password must contain between 1 and 256 characters without control characters.
+Credentials are loaded when the service starts, so editing `server.json`
+requires a service restart.
+
+Although `server.json` shares the data directory with the generated report,
+it is not web content. The server explicitly returns `404` for both `GET` and
+`HEAD` requests targeting the configuration file. Filesystem permissions add a
+separate control: the configuration is owned by the service account with mode
+`0600`.
+
+After a successful challenge, browsers normally reuse HTTP Basic credentials
+for the current browser session. Persistence across browser restarts is a
+browser behavior rather than a server setting.
 
 By default, the service runs as the non-root user that invoked `sudo`. An
 existing unprivileged account can be selected with `--user`; root is rejected.
@@ -213,6 +249,8 @@ use the loopback upstream address.
 - Restrict ingress with a firewall or VPN wherever possible.
 - Keep the operating system, Python, TLS library, and reverse proxy patched.
 - Back up neither `publish-secret` nor private keys into public repositories.
+- Do not publish, commit, or place copies of `server.json` under another served
+  filename.
 - Rotate the publication secret after suspected disclosure.
 - Replace the initial `admin/admin` viewer credentials on any network that is
   not fully trusted.

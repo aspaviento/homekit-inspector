@@ -58,11 +58,13 @@ def running_server(
     tls_key: Path | None = None,
     capture: dict | None = None,
     auth_header: str = "",
+    private_paths: set[Path] | None = None,
 ):
     server = InspectorServer(("127.0.0.1", 0), SilentInspectorHandler)
     server.root = root
     server.index_name = DEFAULT_INDEX
     server.auth_header = auth_header
+    server.private_paths = private_paths or set()
     server.publish_secret = secret
     server.max_upload_bytes = max_bytes
     server.upload_lock = threading.Lock()
@@ -172,6 +174,23 @@ class ServeInspectorTests(unittest.TestCase):
                 'Basic realm="HomeKit Inspector"',
             )
             self.assertEqual(content, VALID_REPORT)
+
+    def test_server_config_is_never_served_from_the_data_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            config = root / "server.json"
+            config.write_text(
+                '{"viewer":{"username":"admin","password":"admin"}}\n',
+                encoding="utf-8",
+            )
+            with running_server(root, private_paths={config}) as base_url:
+                for method in ("GET", "HEAD"):
+                    protected = request.Request(
+                        f"{base_url}/server.json", method=method
+                    )
+                    with self.assertRaises(error.HTTPError) as raised:
+                        request.urlopen(protected)
+                    self.assertEqual(raised.exception.code, 404)
 
     def test_plain_http_is_limited_to_loopback(self):
         validate_transport(

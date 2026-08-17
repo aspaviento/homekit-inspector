@@ -4,7 +4,7 @@
 
 - Added a service-owned private JSON configuration for readable HTTP Basic
   viewer credentials, installed with initial `admin/admin` values in the
-  server data directory.
+  server data directory and explicitly excluded from HTTP file serving.
 - Scoped extraction, layout, infrastructure, scenes, and condition lookups to
   the HomeKit primary home when multiple homes share the local database.
 - Added extraction metadata and logging for the selected home and available
