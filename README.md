@@ -297,11 +297,11 @@ sudo ./install-server.sh \
   --server-config-file /path/to/server.json
 ```
 
-The installer creates `/etc/homekit-inspector/server.json` with initial
-`admin/admin` viewer credentials when no configuration is supplied. Edit that
-root-owned file and restart the service to choose different HTTP Basic
-credentials. The defaults are intended only for initial access on a trusted
-network.
+The installer creates `/var/lib/homekit-inspector/server.json` with initial
+`admin/admin` viewer credentials when no configuration is supplied. The file
+is owned by the service account with mode `0600`, so that account can edit the
+HTTP Basic credentials without root access. Restart the service after a
+change. The defaults are intended only for initial access on a trusted network.
 
 Configure the client with `server` publication:
 

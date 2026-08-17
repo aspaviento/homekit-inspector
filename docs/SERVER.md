@@ -107,19 +107,20 @@ The installer:
 - validates the certificate/key pair and 256-bit secret;
 - installs server code under `/opt/homekit-inspector` by default;
 - stores the served report under `/var/lib/homekit-inspector` by default;
-- installs code and private material as root-owned files, with private files
-  readable but not writable by the service group;
+- installs code, publication secrets, and TLS keys as root-owned files, with
+  private files readable but not writable by the service group;
 - installs the supplied server configuration as
-  `/etc/homekit-inspector/server.json` with mode `0640`;
+  `/var/lib/homekit-inspector/server.json`, owned by the service account with
+  mode `0600`;
 - installs and enables `homekit-inspector.service`;
 - preserves an already installed `server.json` during code-only updates.
 
 When `--server-config-file` is omitted on a new installation, the installer
-creates `/etc/homekit-inspector/server.json` with `admin/admin`. To change the
-credentials later, edit that file as root and restart the service:
+creates `/var/lib/homekit-inspector/server.json` with `admin/admin`. The service
+account can edit that file directly; restart the service afterward:
 
 ```bash
-sudoedit /etc/homekit-inspector/server.json
+nano /var/lib/homekit-inspector/server.json
 sudo systemctl restart homekit-inspector.service
 ```
 

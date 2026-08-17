@@ -6,7 +6,6 @@ SCRIPTPATH=$(CDPATH='' cd -- "$(dirname -- "$SCRIPT")" && pwd)
 
 INSTALL_DIR="/opt/homekit-inspector"
 DATA_DIR="/var/lib/homekit-inspector"
-CONFIG_DIR="/etc/homekit-inspector"
 SERVER_CONFIG_SOURCE=""
 INSTALL_USER="${SUDO_USER:-$USER}"
 HOST="0.0.0.0"
@@ -74,7 +73,7 @@ if ! [[ "$HOST" =~ ^[A-Za-z0-9.:-]+$ ]]; then
     echo "--host contains unsupported characters" >&2
     exit 2
 fi
-for configured_path in "$INSTALL_DIR" "$DATA_DIR" "$CONFIG_DIR"; do
+for configured_path in "$INSTALL_DIR" "$DATA_DIR"; do
     if ! [[ "$configured_path" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
         echo "Installation paths must be absolute and contain only safe characters" >&2
         exit 2
@@ -176,7 +175,6 @@ fi
 
 install -d -m 0755 -o 0 -g 0 "$INSTALL_DIR"
 install -d -m 0750 -o "$INSTALL_USER" -g "$INSTALL_GROUP" "$DATA_DIR"
-install -d -m 0750 -o 0 -g "$INSTALL_GROUP" "$CONFIG_DIR"
 install -d -m 0755 -o 0 -g 0 "$INSTALL_DIR/scripts"
 install -m 0755 -o 0 -g 0 "$SCRIPTPATH/scripts/serve_inspector.py" "$INSTALL_DIR/scripts/serve_inspector.py"
 
@@ -207,17 +205,17 @@ else
     chmod 0640 "$TLS_KEY_PATH"
 fi
 
-SERVER_CONFIG_PATH="$CONFIG_DIR/server.json"
+SERVER_CONFIG_PATH="$DATA_DIR/server.json"
 if [ -n "$SERVER_CONFIG_SOURCE" ]; then
-    install -m 0640 -o 0 -g "$INSTALL_GROUP" "$SERVER_CONFIG_SOURCE" "$SERVER_CONFIG_PATH"
+    install -m 0600 -o "$INSTALL_USER" -g "$INSTALL_GROUP" "$SERVER_CONFIG_SOURCE" "$SERVER_CONFIG_PATH"
 elif [ ! -f "$SERVER_CONFIG_PATH" ]; then
     SERVER_CONFIG_TEMP=$(mktemp)
     printf '%s\n' '{"viewer":{"username":"admin","password":"admin"}}' > "$SERVER_CONFIG_TEMP"
-    install -m 0640 -o 0 -g "$INSTALL_GROUP" "$SERVER_CONFIG_TEMP" "$SERVER_CONFIG_PATH"
+    install -m 0600 -o "$INSTALL_USER" -g "$INSTALL_GROUP" "$SERVER_CONFIG_TEMP" "$SERVER_CONFIG_PATH"
     rm "$SERVER_CONFIG_TEMP"
 fi
-chown 0:"$INSTALL_GROUP" "$SERVER_CONFIG_PATH"
-chmod 0640 "$SERVER_CONFIG_PATH"
+chown "$INSTALL_USER":"$INSTALL_GROUP" "$SERVER_CONFIG_PATH"
+chmod 0600 "$SERVER_CONFIG_PATH"
 if ! HOMEKIT_INSPECTOR_SERVER_CONFIG="$SERVER_CONFIG_PATH" \
     PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$SCRIPTPATH" \
     python3 -c 'from scripts.serve_inspector import build_auth_header; build_auth_header()' \
