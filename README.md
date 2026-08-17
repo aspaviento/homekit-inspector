@@ -18,8 +18,8 @@ The project provides:
   Natural Lighting targets, and Eve/HomeKit predicate conditions.
 - A standalone HTML inspector with views for home layout, hubs, bridges,
   context sources, manufacturers, automations, scenes, and theme assignment.
-- An optional static LAN server for serving a generated inspector report from a
-  private host.
+- An optional LAN server for serving a generated inspector report and accepting
+  authenticated report updates from the macOS CLI.
 - Optional Homebridge context enrichment that adds traceable relationships
   without replacing the raw HomeKit data.
 - Local-only theme and override files for private household-specific metadata.
@@ -172,14 +172,14 @@ The launcher uses `python3` by default. Set `HOMEKIT_INSPECTOR_PYTHON` to an
 executable name or absolute path to select a specific compatible interpreter.
 
 Start from [examples/refresh-config.example.json](examples/refresh-config.example.json)
-and keep the real configuration outside version control. The CLI supports an
-atomic local-file publisher and an SSH publisher that uses the current user's
-existing SSH configuration and keys. It does not store SSH passwords.
+or [examples/refresh-config-server.example.json](examples/refresh-config-server.example.json),
+and keep the real configuration outside version control. The CLI supports two
+publication modes: local HTML generation and signed HTTPS publication to the
+optional report server. Secrets remain in separate owner-only files.
 
-The static LAN server does not need an API or a restart for CLI-driven
-publication. It reads the inspector file on every request with browser caching
-disabled, so the next browser reload sees the atomically replaced report. A
-future browser-initiated refresh would require a separate request/status API.
+The report server reads the inspector file on every request with browser
+caching disabled, so the next browser reload sees an atomically published
+report. Browser-initiated refresh is intentionally outside this version.
 
 See [docs/REFRESH_CLI.md](docs/REFRESH_CLI.md) for the configuration schema,
 installation layout, publication behavior, and failure guarantees.
@@ -273,45 +273,57 @@ names, and device names are private.
 
 When the inspector is served from a LAN host, browser-edited theme assignments
 still use `localStorage` and are scoped to the exact browser origin, such as
-`http://homekit-inspector.local:8099`. To share a consistent configuration
+`https://homekit-inspector.example.net:8099`. To share a consistent configuration
 across devices, keep the canonical theme file private on the Mac, regenerate
 the HTML with `--theme-config`, and redeploy the generated HTML.
 
-## Optional LAN Server
+## Optional Report Server
 
-The generated HTML can be served on a private LAN host such as a Raspberry Pi.
-The included server is static and read-only: it serves the generated
-`homekit_inspector.html` plus a small `/health` endpoint. It does not extract
-HomeKit data and does not write theme changes back to disk.
+The optional server can run on a Raspberry Pi or another Linux host. It serves
+the report and accepts signed publication from an authorized macOS client. It
+does not access HomeKit or initiate extraction.
 
-Install from a cloned checkout on the LAN host:
-
-```bash
-sudo ./install.sh \
-  --install-dir /opt/homekit-inspector \
-  --data-dir /var/lib/homekit-inspector \
-  --user pi \
-  --port 8099
-```
-
-Copy a private generated report into the data directory:
+Create private credentials and install the server with the included scripts:
 
 ```bash
-rsync -av local-output/homekit_inspector.html \
-  pi@raspberrypi.local:/var/lib/homekit-inspector/homekit_inspector.html
+scripts/create-server-credentials.sh \
+  --hostname inspector-server.example.net \
+  --output-dir /path/to/private/server-credentials
+
+sudo ./install-server.sh \
+  --publish-secret-file /path/to/publish-secret \
+  --tls-cert-file /path/to/server-cert.pem \
+  --tls-key-file /path/to/server-key.pem \
+  --server-config-file /path/to/server.json
 ```
 
-Start or restart the service:
+The installer creates `/var/lib/homekit-inspector/server.json` with initial
+`admin/admin` viewer credentials when no configuration is supplied. The file
+is owned by the service account with mode `0600`, so that account can edit the
+HTTP Basic credentials without root access. Restart the service after a
+change. The defaults are intended only for initial access on a trusted network.
+The server explicitly excludes this private configuration file from HTTP file
+serving even though it shares the report data directory.
 
-```bash
-sudo systemctl restart homekit-inspector.service
-curl http://raspberrypi.local:8099/health
+Configure the client with `server` publication:
+
+```json
+{
+  "publish": {
+    "type": "server",
+    "url": "https://inspector-server.example.net:8099/api/v1/report",
+    "secretFile": "/path/to/publish-secret",
+    "caFile": "/path/to/ca.pem",
+    "healthUrl": "https://inspector-server.example.net:8099/health"
+  }
+}
 ```
 
-The server is intended for trusted LAN or VPN access only; real home reports
-are not public internet artifacts. Because the served inspector is a static
-HTML report, the LAN view reflects the exported JSON and regenerated HTML that
-were last copied to the server.
+Server mode requires HTTPS except for a loopback-only reverse-proxy upstream.
+Each request is authenticated with HMAC-SHA256, timestamped, and protected
+against replay; the shared secret never travels over the network. See
+[docs/SERVER.md](docs/SERVER.md) for credential handling, direct TLS, reverse
+proxy, installation, firewall, validation, and rotation guidance.
 
 ## Private Overrides
 
@@ -364,12 +376,14 @@ homekit-inspector/
 │   ├── EXPLORER.md              # Inspector and context-source details
 │   ├── PRIVACY.md               # Sensitive-data and publishing checklist
 │   ├── REFRESH_CLI.md           # Repeatable refresh and publication workflow
+│   ├── SERVER.md                # Secure report server installation and operation
 │   ├── SCHEMA.md                # homed CoreData schema notes
 │   └── TECHNICAL_APPROACH.md    # Scope, pipeline, and design boundaries
 ├── examples/
 │   ├── homebridge-context.example.json
 │   ├── private-overrides.example.json
 │   ├── refresh-config.example.json
+│   ├── refresh-config-server.example.json
 │   ├── theme-config.example.json
 │   └── sample_output.json
 ├── scripts/
@@ -377,8 +391,11 @@ homekit-inspector/
 │   ├── generate_condition_diagnostics.py
 │   ├── generate_homekit_reports.py
 │   ├── homekit_inspector_cli.py
-│   └── generate_inspector.py
+│   ├── generate_inspector.py
+│   ├── serve_inspector.py
+│   └── create-server-credentials.sh
 ├── install-cli.sh               # User-scoped CLI installation and updates
+├── install-server.sh            # Linux report-server installation entry point
 └── uninstall-cli.sh             # Safe removal, preserving private data by default
 ```
 
@@ -405,6 +422,9 @@ security behavior, so they are best kept out of public repositories.
 ## Limitations
 
 - The HomeKit database schema is private and can change between macOS releases.
+- When the database contains multiple homes, this version inspects the home
+  marked as primary by HomeKit and reports that selection in the extraction
+  log. Selecting a different home explicitly is planned for a future version.
 - Full Disk Access is required because `~/Library/HomeKit/` is TCC-protected.
 - Some Eve/HomeKit predicates are partially opaque and may need review.
 - Some values are reported as unresolved when the decoder cannot identify them

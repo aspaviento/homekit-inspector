@@ -8,11 +8,14 @@ import contextlib
 import datetime as dt
 import fcntl
 import hashlib
+import hmac
 import json
 import os
 import re
+import secrets
 import shlex
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -33,8 +36,13 @@ REPORT_FILENAME = "homekit_inspector.html"
 DATA_FILENAME = "homekit_inspector_data.json"
 EXPORT_FILENAME = "homekit_homed_export.json"
 CONFIG_VERSION = 1
-SAFE_SSH_HOST = re.compile(r"^[A-Za-z0-9_.@-]+$")
-SAFE_REMOTE_PATH = re.compile(r"^/[A-Za-z0-9._/-]+$")
+DEFAULT_LOCAL_REPORT = (
+    "~/Library/Application Support/HomeKit Inspector/published/homekit_inspector.html"
+)
+SIGNATURE_PROTOCOL = "homekit-inspector-v1"
+REPORT_ENDPOINT = "/api/v1/report"
+SECRET_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
 class ConfigError(ValueError):
@@ -43,6 +51,11 @@ class ConfigError(ValueError):
 
 class RefreshError(RuntimeError):
     """Raised when extraction, generation, publication, or verification fails."""
+
+
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 @dataclass(frozen=True)
@@ -55,8 +68,11 @@ class InputConfig:
 @dataclass(frozen=True)
 class PublishConfig:
     kind: str
-    path: Path | str
-    host: str | None = None
+    path: Path | None = None
+    url: str | None = None
+    secret_file: Path | None = None
+    ca_file: Path | None = None
+    request_timeout_seconds: float = 30.0
     health_url: str | None = None
     health_timeout_seconds: float = 5.0
 
@@ -109,6 +125,39 @@ def optional_path(value, label: str, base: Path) -> Path | None:
     return resolve_path(value, base)
 
 
+def validated_server_url(value, label: str, expected_path: str | None = None) -> str:
+    parsed = urlparse(value) if isinstance(value, str) else None
+    try:
+        parsed_port = parsed.port if parsed is not None else None
+    except ValueError as exc:
+        raise ConfigError(f"{label} contains an invalid port") from exc
+    if (
+        parsed is None
+        or parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ConfigError(
+            f"{label} must be an HTTPS URL without credentials, query, or fragment"
+        )
+    if parsed.scheme != "https" and parsed.hostname not in LOOPBACK_HOSTS:
+        raise ConfigError(f"{label} must use HTTPS except for loopback development")
+    if parsed_port is not None and not 1 <= parsed_port <= 65535:
+        raise ConfigError(f"{label} contains an invalid port")
+    if expected_path is not None and parsed.path != expected_path:
+        raise ConfigError(f"{label} path must be {expected_path}")
+    return value
+
+
+def url_origin(value: str) -> tuple[str, str | None, int | None]:
+    parsed = urlparse(value)
+    return parsed.scheme, parsed.hostname, parsed.port
+
+
 def load_config(path: Path) -> RefreshConfig:
     config_path = path.expanduser().resolve()
     try:
@@ -151,27 +200,31 @@ def load_config(path: Path) -> RefreshConfig:
         ),
     )
 
-    publish_raw = require_mapping(raw.get("publish"), "publish")
-    reject_unknown_keys(
-        publish_raw,
-        {"type", "host", "path", "healthUrl", "healthTimeoutSeconds"},
+    publish_raw = require_mapping(
+        raw.get("publish", {"type": "local", "path": DEFAULT_LOCAL_REPORT}),
         "publish",
     )
-    kind = publish_raw.get("type")
-    if kind not in {"local", "ssh"}:
-        raise ConfigError("publish.type must be 'local' or 'ssh'")
-    publish_path = publish_raw.get("path")
-    if not isinstance(publish_path, str) or not publish_path.strip():
-        raise ConfigError("publish.path must be a non-empty path string")
+    reject_unknown_keys(
+        publish_raw,
+        {
+            "type",
+            "path",
+            "url",
+            "secretFile",
+            "caFile",
+            "requestTimeoutSeconds",
+            "healthUrl",
+            "healthTimeoutSeconds",
+        },
+        "publish",
+    )
+    kind = publish_raw.get("type", "local")
+    if kind not in {"local", "server"}:
+        raise ConfigError("publish.type must be 'local' or 'server'")
+    publish_path = publish_raw.get(
+        "path", DEFAULT_LOCAL_REPORT if kind == "local" else None
+    )
     health_url = publish_raw.get("healthUrl")
-    if health_url is not None:
-        parsed_health_url = urlparse(health_url) if isinstance(health_url, str) else None
-        if (
-            parsed_health_url is None
-            or parsed_health_url.scheme not in {"http", "https"}
-            or not parsed_health_url.netloc
-        ):
-            raise ConfigError("publish.healthUrl must be an http or https URL")
     timeout = publish_raw.get("healthTimeoutSeconds", 5)
     if (
         isinstance(timeout, bool)
@@ -179,24 +232,42 @@ def load_config(path: Path) -> RefreshConfig:
         or not 0 < timeout <= 60
     ):
         raise ConfigError("publish.healthTimeoutSeconds must be between 0 and 60")
+    request_timeout = publish_raw.get("requestTimeoutSeconds", 30)
+    if (
+        isinstance(request_timeout, bool)
+        or not isinstance(request_timeout, (int, float))
+        or not 0 < request_timeout <= 300
+    ):
+        raise ConfigError("publish.requestTimeoutSeconds must be between 0 and 300")
 
-    host = publish_raw.get("host")
+    publish_url = publish_raw.get("url")
+    secret_file_raw = publish_raw.get("secretFile")
+    ca_file_raw = publish_raw.get("caFile")
+    resolved_publish_path: Path | None = None
+    secret_file: Path | None = None
+    ca_file: Path | None = None
     if kind == "local":
-        if host is not None:
-            raise ConfigError("publish.host is only valid for publish.type 'ssh'")
-        resolved_publish_path: Path | str = resolve_path(publish_path, base)
+        if any(value is not None for value in (publish_url, secret_file_raw, ca_file_raw)):
+            raise ConfigError("local publication only supports publish.path")
+        if not isinstance(publish_path, str) or not publish_path.strip():
+            raise ConfigError("publish.path must be a non-empty path string")
+        if health_url is not None:
+            raise ConfigError("local publication does not support publish.healthUrl")
+        resolved_publish_path = resolve_path(publish_path, base)
     else:
-        if (
-            not isinstance(host, str)
-            or host.startswith("-")
-            or not SAFE_SSH_HOST.fullmatch(host)
-        ):
-            raise ConfigError("publish.host contains unsupported characters")
-        if not SAFE_REMOTE_PATH.fullmatch(publish_path):
-            raise ConfigError(
-                "SSH publish.path must be absolute and contain only letters, numbers, '.', '_', '-', and '/'"
-            )
-        resolved_publish_path = publish_path
+        if publish_path is not None:
+            raise ConfigError("server publication does not support publish.path")
+        publish_url = validated_server_url(
+            publish_url, "publish.url", expected_path=REPORT_ENDPOINT
+        )
+        secret_file = optional_path(secret_file_raw, "publish.secretFile", base)
+        if secret_file is None:
+            raise ConfigError("publish.secretFile is required for server publication")
+        ca_file = optional_path(ca_file_raw, "publish.caFile", base)
+        if health_url is not None:
+            health_url = validated_server_url(health_url, "publish.healthUrl")
+            if url_origin(health_url) != url_origin(publish_url):
+                raise ConfigError("publish.healthUrl must use the same origin as publish.url")
 
     verbose = raw.get("verbose", False)
     if not isinstance(verbose, bool):
@@ -209,7 +280,10 @@ def load_config(path: Path) -> RefreshConfig:
         publish=PublishConfig(
             kind=kind,
             path=resolved_publish_path,
-            host=host,
+            url=publish_url,
+            secret_file=secret_file,
+            ca_file=ca_file,
+            request_timeout_seconds=float(request_timeout),
             health_url=health_url,
             health_timeout_seconds=float(timeout),
         ),
@@ -227,10 +301,36 @@ def validate_config(config: RefreshConfig, require_database: bool = True) -> Non
     ):
         if path is not None and not path.is_file():
             raise ConfigError(f"Configured {label} is not readable: {path}")
-    if config.publish.kind == "ssh":
-        for executable in ("rsync", "ssh"):
-            if shutil.which(executable) is None:
-                raise ConfigError(f"Required executable not found: {executable}")
+    if config.publish.kind == "server":
+        if config.publish.secret_file is None or not config.publish.secret_file.is_file():
+            raise ConfigError(
+                f"Server publication secret is not readable: {config.publish.secret_file}"
+            )
+        read_publish_secret(config.publish.secret_file)
+        require_owner_only(config.publish.secret_file, "Server publication secret")
+        if config.publish.ca_file is not None:
+            if not config.publish.ca_file.is_file():
+                raise ConfigError(
+                    f"Server CA certificate is not readable: {config.publish.ca_file}"
+                )
+            require_owner_only(config.publish.ca_file, "Server CA certificate")
+
+
+def require_owner_only(path: Path, label: str) -> None:
+    if path.stat().st_mode & 0o077:
+        raise ConfigError(f"{label} must use owner-only permissions")
+
+
+def read_publish_secret(path: Path) -> bytes:
+    try:
+        secret = path.read_text(encoding="ascii").strip()
+    except OSError as exc:
+        raise ConfigError(f"Server publication secret is not readable: {path}") from exc
+    except UnicodeDecodeError as exc:
+        raise ConfigError("Server publication secret must be ASCII hexadecimal") from exc
+    if not SECRET_PATTERN.fullmatch(secret):
+        raise ConfigError("Server publication secret must contain exactly 64 lowercase hex characters")
+    return bytes.fromhex(secret)
 
 
 def atomic_write_json(path: Path, payload: dict) -> None:
@@ -352,30 +452,111 @@ def validate_generated_output(directory: Path) -> dict[str, str]:
     }
 
 
-def remote_sha256(host: str, path: str, verbose: bool = False) -> str:
-    code = "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())"
-    remote_command = f"python3 -c {shlex.quote(code)} {shlex.quote(path)}"
-    completed = run_command(["ssh", host, remote_command], verbose=verbose)
-    digest = completed.stdout.strip()
-    if not re.fullmatch(r"[0-9a-f]{64}", digest):
-        raise RefreshError("Remote server returned an invalid report hash")
-    return digest
+def extraction_home_summary(export_path: Path) -> dict:
+    try:
+        payload = json.loads(export_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RefreshError(f"Unable to read selected HomeKit home: {exc}") from exc
+    name = payload.get("homeName")
+    selection = payload.get("homeSelection")
+    available_count = payload.get("availableHomeCount")
+    if not isinstance(name, str) or not name:
+        raise RefreshError("Extractor did not identify a HomeKit home")
+    if selection not in {"primary", "first"}:
+        raise RefreshError("Extractor did not report a valid HomeKit home selection")
+    if type(available_count) is not int or available_count < 1:
+        raise RefreshError("Extractor did not report the available HomeKit home count")
+    return {
+        "name": name,
+        "selection": selection,
+        "availableCount": available_count,
+    }
+
+
+def signature_payload(
+    timestamp: str, nonce: str, digest: str, content_length: int
+) -> bytes:
+    return "\n".join(
+        (
+            SIGNATURE_PROTOCOL,
+            "POST",
+            REPORT_ENDPOINT,
+            timestamp,
+            nonce,
+            digest,
+            str(content_length),
+        )
+    ).encode("ascii")
+
+
+def request_signature(
+    secret: bytes, timestamp: str, nonce: str, digest: str, content_length: int
+) -> str:
+    return hmac.new(
+        secret,
+        signature_payload(timestamp, nonce, digest, content_length),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def server_opener(config: PublishConfig):
+    handlers = [NoRedirectHandler()]
+    if config.url and urlparse(config.url).scheme == "https":
+        context = ssl.create_default_context(
+            cafile=str(config.ca_file) if config.ca_file else None
+        )
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        handlers.append(urllib.request.HTTPSHandler(context=context))
+    return urllib.request.build_opener(*handlers)
 
 
 def publish_report(config: PublishConfig, report_path: Path, verbose: bool = False) -> str:
     expected_hash = sha256_file(report_path)
     if config.kind == "local":
+        if config.path is None:
+            raise RefreshError("Local publication path is not configured")
         destination = Path(config.path)
-        atomic_copy(report_path, destination, mode=0o644)
+        atomic_copy(report_path, destination, mode=0o600)
         actual_hash = sha256_file(destination)
     else:
-        host = config.host or ""
-        destination = str(config.path)
-        run_command(
-            ["rsync", "-a", "--checksum", "--", str(report_path), f"{host}:{destination}"],
-            verbose=verbose,
+        if not config.url or config.secret_file is None:
+            raise RefreshError("Server publication is not fully configured")
+        try:
+            secret = read_publish_secret(config.secret_file)
+            content = report_path.read_bytes()
+        except OSError as exc:
+            raise RefreshError(f"Unable to read server publication input: {exc}") from exc
+        timestamp = str(int(time.time()))
+        nonce = secrets.token_hex(16)
+        signature = request_signature(
+            secret, timestamp, nonce, expected_hash, len(content)
         )
-        actual_hash = remote_sha256(host, destination, verbose=verbose)
+        request = urllib.request.Request(
+            config.url,
+            data=content,
+            method="POST",
+            headers={
+                "Content-Type": "text/html; charset=utf-8",
+                "X-Inspector-Protocol": SIGNATURE_PROTOCOL,
+                "X-Inspector-Timestamp": timestamp,
+                "X-Inspector-Nonce": nonce,
+                "X-Report-SHA256": expected_hash,
+                "X-Inspector-Signature": signature,
+                "Accept": "application/json",
+                "User-Agent": "HomeKit-Inspector-CLI/1",
+            },
+        )
+        try:
+            opener = server_opener(config)
+            with opener.open(request, timeout=config.request_timeout_seconds) as response:
+                payload = json.load(response)
+        except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+            raise RefreshError(f"Server publication failed: {exc}") from exc
+        if not isinstance(payload, dict) or payload.get("ok") is not True:
+            raise RefreshError("Server publication did not return ok=true")
+        actual_hash = payload.get("sha256")
+        if not isinstance(actual_hash, str):
+            raise RefreshError("Server publication did not return a report hash")
     if actual_hash != expected_hash:
         raise RefreshError("Published report hash does not match generated report")
     return actual_hash
@@ -386,7 +567,8 @@ def check_health(config: PublishConfig) -> dict | None:
         return None
     request = urllib.request.Request(config.health_url, headers={"Accept": "application/json"})
     try:
-        with urllib.request.urlopen(request, timeout=config.health_timeout_seconds) as response:
+        opener = server_opener(config)
+        with opener.open(request, timeout=config.health_timeout_seconds) as response:
             payload = json.load(response)
     except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
         raise RefreshError(f"Server health check failed: {exc}") from exc
@@ -418,6 +600,13 @@ def run_refresh(config: RefreshConfig) -> dict:
                 export_path = temporary / EXPORT_FILENAME
                 print("Extracting HomeKit data...", file=sys.stderr)
                 run_command(extractor_command(config, export_path), verbose=config.verbose)
+                selected_home = extraction_home_summary(export_path)
+                print(
+                    f"Selected HomeKit home: {selected_home['name']} "
+                    f"({selected_home['selection']}; "
+                    f"{selected_home['availableCount']} available)",
+                    file=sys.stderr,
+                )
                 print("Generating inspector...", file=sys.stderr)
                 run_command(
                     generator_command(config, export_path, temporary), verbose=config.verbose
@@ -445,6 +634,7 @@ def run_refresh(config: RefreshConfig) -> dict:
                 "completedAt": completed_at,
                 "durationSeconds": round(time.monotonic() - started, 3),
                 "publishType": config.publish.kind,
+                "home": selected_home,
                 "reportSha256": published_hash,
                 "artifacts": hashes,
                 "health": health,
@@ -502,8 +692,13 @@ def print_config(config_path: Path, config: RefreshConfig) -> int:
         },
         "publish": {
             "type": config.publish.kind,
-            "host": config.publish.host,
-            "path": str(config.publish.path),
+            "path": str(config.publish.path) if config.publish.path is not None else None,
+            "url": config.publish.url,
+            "secretFile": (
+                str(config.publish.secret_file) if config.publish.secret_file else None
+            ),
+            "caFile": str(config.publish.ca_file) if config.publish.ca_file else None,
+            "requestTimeoutSeconds": config.publish.request_timeout_seconds,
             "healthUrl": config.publish.health_url,
             "healthTimeoutSeconds": config.publish.health_timeout_seconds,
         },

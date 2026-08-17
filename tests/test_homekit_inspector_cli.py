@@ -6,17 +6,19 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from scripts.homekit_inspector_cli import (
     ConfigError,
     DATA_FILENAME,
     EXPORT_FILENAME,
+    NoRedirectHandler,
     REPORT_FILENAME,
     atomic_write_json,
+    extraction_home_summary,
     load_config,
     publish_report,
     sha256_file,
+    validate_config,
     validate_generated_output,
 )
 
@@ -25,6 +27,34 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class HomeKitInspectorCliTests(unittest.TestCase):
+    def test_extraction_home_summary_requires_explicit_selection_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            export = Path(tmp) / EXPORT_FILENAME
+            export.write_text(
+                json.dumps(
+                    {
+                        "homeName": "Primary Home",
+                        "homeSelection": "primary",
+                        "availableHomeCount": 2,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                extraction_home_summary(export),
+                {
+                    "name": "Primary Home",
+                    "selection": "primary",
+                    "availableCount": 2,
+                },
+            )
+
+    def test_server_publication_does_not_follow_redirects(self):
+        handler = NoRedirectHandler()
+        self.assertIsNone(
+            handler.redirect_request(None, None, 307, "redirect", {}, "https://other")
+        )
+
     def write_config(self, directory: Path, payload: dict) -> Path:
         path = directory / "config.json"
         path.write_text(json.dumps(payload), encoding="utf-8")
@@ -48,7 +78,47 @@ class HomeKitInspectorCliTests(unittest.TestCase):
             self.assertEqual(config.working_directory, root / "work")
             self.assertEqual(config.publish.path, root / "served/report.html")
 
-    def test_rejects_unsafe_remote_path(self):
+    def test_defaults_to_local_publication_when_publish_is_omitted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            config = load_config(
+                self.write_config(root, {"version": 1})
+            )
+            self.assertEqual(config.publish.kind, "local")
+            self.assertEqual(
+                config.publish.path,
+                Path.home()
+                / "Library/Application Support/HomeKit Inspector/published/homekit_inspector.html",
+            )
+
+    def test_loads_server_config_and_resolves_private_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            config = load_config(
+                self.write_config(
+                    root,
+                    {
+                        "version": 1,
+                        "publish": {
+                            "type": "server",
+                            "url": "https://inspector.example/api/v1/report",
+                            "secretFile": "secrets/publish-secret",
+                            "caFile": "secrets/server-ca.pem",
+                        },
+                    },
+                )
+            )
+            self.assertEqual(config.publish.kind, "server")
+            self.assertEqual(
+                config.publish.url, "https://inspector.example/api/v1/report"
+            )
+            self.assertEqual(
+                config.publish.secret_file, root / "secrets/publish-secret"
+            )
+            self.assertEqual(config.publish.ca_file, root / "secrets/server-ca.pem")
+            self.assertIsNone(config.publish.path)
+
+    def test_rejects_remote_server_url_without_https(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
             path = self.write_config(
@@ -56,16 +126,16 @@ class HomeKitInspectorCliTests(unittest.TestCase):
                 {
                     "version": 1,
                     "publish": {
-                        "type": "ssh",
-                        "host": "inspector.local",
-                        "path": "/srv/report;touch-bad",
+                        "type": "server",
+                        "url": "http://inspector.example/api/v1/report",
+                        "secretFile": "publish-secret",
                     },
                 },
             )
             with self.assertRaises(ConfigError):
                 load_config(path)
 
-    def test_rejects_ssh_host_that_looks_like_an_option(self):
+    def test_rejects_server_url_with_embedded_credentials(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
             path = self.write_config(
@@ -73,14 +143,53 @@ class HomeKitInspectorCliTests(unittest.TestCase):
                 {
                     "version": 1,
                     "publish": {
-                        "type": "ssh",
-                        "host": "-oProxyCommand",
-                        "path": "/srv/homekit_inspector.html",
+                        "type": "server",
+                        "url": "https://user:secret@inspector.example/api/v1/report",
+                        "secretFile": "publish-secret",
                     },
                 },
             )
             with self.assertRaises(ConfigError):
                 load_config(path)
+
+    def test_rejects_unexpected_server_api_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            path = self.write_config(
+                root,
+                {
+                    "version": 1,
+                    "publish": {
+                        "type": "server",
+                        "url": "https://inspector.example/api/v1/other",
+                        "secretFile": "publish-secret",
+                    },
+                },
+            )
+            with self.assertRaisesRegex(ConfigError, "/api/v1/report"):
+                load_config(path)
+
+    def test_server_validation_rejects_non_private_secret_permissions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            secret = root / "publish-secret"
+            secret.write_text("a" * 64, encoding="ascii")
+            secret.chmod(0o644)
+            config = load_config(
+                self.write_config(
+                    root,
+                    {
+                        "version": 1,
+                        "publish": {
+                            "type": "server",
+                            "url": "https://inspector.example/api/v1/report",
+                            "secretFile": "publish-secret",
+                        },
+                    },
+                )
+            )
+            with self.assertRaisesRegex(ConfigError, "owner-only permissions"):
+                validate_config(config, require_database=False)
 
     def test_local_publish_is_hash_verified(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -100,39 +209,7 @@ class HomeKitInspectorCliTests(unittest.TestCase):
             result = publish_report(config.publish, source)
             self.assertEqual(result, sha256_file(source))
             self.assertEqual(destination.read_bytes(), source.read_bytes())
-            self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o644)
-
-    def test_ssh_publish_uses_rsync_and_verifies_remote_hash(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            source = root / "source.html"
-            source.write_text("<html>report</html>", encoding="utf-8")
-            config = load_config(
-                self.write_config(
-                    root,
-                    {
-                        "version": 1,
-                        "publish": {
-                            "type": "ssh",
-                            "host": "inspector.local",
-                            "path": "/srv/inspector/homekit_inspector.html",
-                        },
-                    },
-                )
-            )
-            digest = sha256_file(source)
-            responses = [
-                subprocess.CompletedProcess([], 0, "", ""),
-                subprocess.CompletedProcess([], 0, digest + "\n", ""),
-            ]
-            with patch(
-                "scripts.homekit_inspector_cli.run_command", side_effect=responses
-            ) as runner:
-                result = publish_report(config.publish, source)
-            self.assertEqual(result, digest)
-            self.assertEqual(runner.call_count, 2)
-            self.assertEqual(runner.call_args_list[0].args[0][0], "rsync")
-            self.assertEqual(runner.call_args_list[1].args[0][0], "ssh")
+            self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
 
     def test_generated_output_validation_requires_payload_rules(self):
         with tempfile.TemporaryDirectory() as tmp:

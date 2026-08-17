@@ -83,6 +83,12 @@ Without `--config`, the CLI looks for:
 This is the path populated by `install-cli.sh`, so installed commands normally
 do not need `--config`.
 
+If the database contains more than one HomeKit home, `refresh` selects the home
+marked as primary by HomeKit. Its log prints the selected name, selection
+method, and number of available homes; the same information is stored in the
+successful refresh status. Explicit selection of another home is not supported
+in this version.
+
 `validate-config` checks the schema, database and optional input files, and the
 local executables needed by the selected publisher. It does not extract data.
 
@@ -123,8 +129,7 @@ use owner-only permissions such as `chmod 600 CONFIG.json`.
   },
   "publish": {
     "type": "local",
-    "path": "~/Library/Application Support/HomeKit Inspector/published/homekit_inspector.html",
-    "healthUrl": null
+    "path": "~/Library/Application Support/HomeKit Inspector/published/homekit_inspector.html"
   },
   "verbose": false
 }
@@ -150,39 +155,65 @@ The local publisher atomically replaces one report file:
 {
   "publish": {
     "type": "local",
-    "path": "/srv/homekit-inspector/homekit_inspector.html",
-    "healthUrl": "http://inspector-server.local:8099/health"
+    "path": "~/Documents/HomeKit Inspector/homekit_inspector.html"
   }
 }
 ```
 
-This mode fits a server running on the same Mac or a mounted private volume.
-The destination directory is created when possible. The resulting served HTML
-uses mode `0644`; private working artifacts remain `0600`.
+This is the default mode and does not need a report server. The destination
+directory is created when possible. The published HTML and private working
+artifacts use mode `0600`.
 
-## SSH Publication
+When the `publish` object is omitted entirely, the default destination is:
 
-The SSH publisher uses `rsync` for transfer and `ssh` for remote hash
-verification:
+```text
+~/Library/Application Support/HomeKit Inspector/published/homekit_inspector.html
+```
+
+## Server Publication
+
+Server publication sends the validated self-contained report to the optional
+HomeKit Inspector report server:
 
 ```json
 {
   "publish": {
-    "type": "ssh",
-    "host": "inspector-server",
-    "path": "/var/lib/homekit-inspector/homekit_inspector.html",
-    "healthUrl": "http://inspector-server.local:8099/health",
+    "type": "server",
+    "url": "https://inspector-server.example.net:8099/api/v1/report",
+    "secretFile": "config/publish-secret",
+    "caFile": "config/server-ca.pem",
+    "requestTimeoutSeconds": 30,
+    "healthUrl": "https://inspector-server.example.net:8099/health",
     "healthTimeoutSeconds": 5
   }
 }
 ```
 
-The host may be an SSH config alias or a `user@host` value. Authentication uses
-the current user's SSH agent, keys, and SSH configuration. Passwords and private
-keys do not belong in the refresh configuration.
+`secretFile` contains exactly 64 lowercase hexadecimal characters representing
+a random 256-bit key. `caFile` is required for a private CA and omitted when the
+server certificate is already trusted by macOS. Both are copied into private
+installed storage by `install-cli.sh --config FILE`.
 
-The remote server must provide Python 3 for SHA-256 verification. This is
-already a requirement of the included static server.
+The secret is not stored in JSON, displayed by `show-config`, included in the
+report, passed as a process argument, or transmitted. The client signs each
+request with HMAC-SHA256 over the endpoint, timestamp, one-time nonce, report
+digest, and content length. Redirects are rejected.
+
+The server rejects unsigned, stale, replayed, oversized, incomplete,
+hash-mismatched, or structurally invalid reports. A valid report atomically
+replaces the previous HTML file, and the response returns the stored digest for
+client verification.
+
+The server API provides:
+
+- `POST /api/v1/report`: authenticated report publication.
+- `GET /api/v1/status`: current report size, modification time, and SHA-256.
+- `GET /health`: server and index availability.
+
+Remote server URLs must use HTTPS. Plain HTTP is accepted only for loopback
+development or a loopback-only upstream behind an HTTPS reverse proxy. See
+[SERVER.md](SERVER.md) for server installation, TLS setup, reverse-proxy
+requirements, credential rotation, and operational security.
 
 ## Failure Behavior
 
@@ -195,5 +226,6 @@ already a requirement of the included static server.
 - The CLI never restarts `homed`, writes to HomeKit SQLite files, or changes
   HomeKit accessories and automations.
 
-The current server remains a static file server. Browser-initiated refresh is
-outside this CLI version and would require an authenticated request/status API.
+Browser-initiated refresh remains outside this version. The API accepts a
+completed report from the macOS agent; it cannot access or extract the Mac's
+HomeKit database.

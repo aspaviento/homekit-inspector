@@ -20,13 +20,14 @@ The tool extracts and presents:
   Lighting targets where available.
 - Optional external context, currently Homebridge configuration.
 - User-maintained theme assignments and private overrides.
+- Optional local or authenticated server publication of the completed report.
 
 The tool does not:
 
 - modify HomeKit;
 - write to the HomeKit database;
 - restart or control `homed`;
-- publish or upload data;
+- transmit data unless `server` publication is explicitly configured;
 - attempt to recreate automations in another platform.
 
 ## Primary Data Source
@@ -77,6 +78,12 @@ core.sqlite
   -> scripts/generate_inspector.py
   -> local-output/homekit_inspector.html
 ```
+
+Before building the lookup graph, the extractor identifies the home marked as
+primary by HomeKit. Rooms, zones, accessories, automations, scenes, hubs, and
+bridges are scoped to that home's `ZHOME` relationship. The extraction log
+names the selected home and reports how many homes were available. Explicit
+selection of a non-primary home is a future extension.
 
 Optional enrichment:
 
