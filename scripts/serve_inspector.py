@@ -133,7 +133,11 @@ class InspectorHandler(SimpleHTTPRequestHandler):
                 HTTPStatus.SERVICE_UNAVAILABLE,
             )
             return
-        if not self.server.tls_enabled and self.client_address[0] not in LOOPBACK_ADDRESSES:
+        if (
+            not self.server.tls_enabled
+            and self.client_address[0] not in LOOPBACK_ADDRESSES
+            and not self.server.allow_plain_http
+        ):
             self.write_json(
                 {"ok": False, "error": "Report upload requires HTTPS"},
                 HTTPStatus.UPGRADE_REQUIRED,
@@ -358,6 +362,7 @@ class InspectorServer(ThreadingHTTPServer):
     nonce_lock: threading.Lock
     used_nonces: dict[str, int]
     tls_enabled: bool
+    allow_plain_http: bool = False
     tls_context: ssl.SSLContext | None = None
     tls_handshake_timeout: float = DEFAULT_TLS_HANDSHAKE_TIMEOUT_SECONDS
 
@@ -541,10 +546,19 @@ def validate_transport(
     tls_enabled: bool,
     view_auth_enabled: bool,
     allow_unauthenticated_view: bool,
+    allow_plain_http: bool = False,
 ) -> None:
-    if not tls_enabled and host not in {"localhost", *LOOPBACK_ADDRESSES}:
+    if tls_enabled and allow_plain_http:
         raise SystemExit(
-            "Network serving requires TLS or a loopback-only server behind a TLS proxy"
+            "HOMEKIT_INSPECTOR_ALLOW_PLAIN_HTTP must be false when TLS is enabled"
+        )
+    if (
+        not tls_enabled
+        and host not in {"localhost", *LOOPBACK_ADDRESSES}
+        and not allow_plain_http
+    ):
+        raise SystemExit(
+            "Network serving requires TLS unless HOMEKIT_INSPECTOR_ALLOW_PLAIN_HTTP=true"
         )
     if (
         host not in {"localhost", *LOOPBACK_ADDRESSES}
@@ -592,12 +606,14 @@ def main() -> None:
     server.upload_lock = threading.Lock()
     server.nonce_lock = threading.Lock()
     server.used_nonces = {}
+    server.allow_plain_http = env_bool("HOMEKIT_INSPECTOR_ALLOW_PLAIN_HTTP")
     server.tls_enabled = configure_tls(server)
     validate_transport(
         host,
         server.tls_enabled,
         bool(server.auth_header),
         env_bool("HOMEKIT_INSPECTOR_ALLOW_UNAUTHENTICATED_VIEW"),
+        server.allow_plain_http,
     )
     scheme = "https" if server.tls_enabled else "http"
     print(f"Serving HomeKit Inspector from {root} on {scheme}://{host}:{port}/", flush=True)

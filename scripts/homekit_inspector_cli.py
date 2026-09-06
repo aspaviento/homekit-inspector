@@ -75,6 +75,7 @@ class PublishConfig:
     request_timeout_seconds: float = 30.0
     health_url: str | None = None
     health_timeout_seconds: float = 5.0
+    allow_plain_http: bool = False
 
 
 @dataclass(frozen=True)
@@ -125,7 +126,12 @@ def optional_path(value, label: str, base: Path) -> Path | None:
     return resolve_path(value, base)
 
 
-def validated_server_url(value, label: str, expected_path: str | None = None) -> str:
+def validated_server_url(
+    value,
+    label: str,
+    expected_path: str | None = None,
+    allow_plain_http: bool = False,
+) -> str:
     parsed = urlparse(value) if isinstance(value, str) else None
     try:
         parsed_port = parsed.port if parsed is not None else None
@@ -142,10 +148,16 @@ def validated_server_url(value, label: str, expected_path: str | None = None) ->
         or parsed.fragment
     ):
         raise ConfigError(
-            f"{label} must be an HTTPS URL without credentials, query, or fragment"
+            f"{label} must be an HTTP or HTTPS URL without credentials, query, or fragment"
         )
-    if parsed.scheme != "https" and parsed.hostname not in LOOPBACK_HOSTS:
-        raise ConfigError(f"{label} must use HTTPS except for loopback development")
+    if (
+        parsed.scheme != "https"
+        and parsed.hostname not in LOOPBACK_HOSTS
+        and not allow_plain_http
+    ):
+        raise ConfigError(
+            f"{label} must use HTTPS unless publish.allowPlainHttp is true"
+        )
     if parsed_port is not None and not 1 <= parsed_port <= 65535:
         raise ConfigError(f"{label} contains an invalid port")
     if expected_path is not None and parsed.path != expected_path:
@@ -215,6 +227,7 @@ def load_config(path: Path) -> RefreshConfig:
             "requestTimeoutSeconds",
             "healthUrl",
             "healthTimeoutSeconds",
+            "allowPlainHttp",
         },
         "publish",
     )
@@ -225,6 +238,9 @@ def load_config(path: Path) -> RefreshConfig:
         "path", DEFAULT_LOCAL_REPORT if kind == "local" else None
     )
     health_url = publish_raw.get("healthUrl")
+    allow_plain_http = publish_raw.get("allowPlainHttp", False)
+    if not isinstance(allow_plain_http, bool):
+        raise ConfigError("publish.allowPlainHttp must be true or false")
     timeout = publish_raw.get("healthTimeoutSeconds", 5)
     if (
         isinstance(timeout, bool)
@@ -253,19 +269,34 @@ def load_config(path: Path) -> RefreshConfig:
             raise ConfigError("publish.path must be a non-empty path string")
         if health_url is not None:
             raise ConfigError("local publication does not support publish.healthUrl")
+        if allow_plain_http:
+            raise ConfigError("local publication does not support publish.allowPlainHttp")
         resolved_publish_path = resolve_path(publish_path, base)
     else:
         if publish_path is not None:
             raise ConfigError("server publication does not support publish.path")
         publish_url = validated_server_url(
-            publish_url, "publish.url", expected_path=REPORT_ENDPOINT
+            publish_url,
+            "publish.url",
+            expected_path=REPORT_ENDPOINT,
+            allow_plain_http=allow_plain_http,
         )
         secret_file = optional_path(secret_file_raw, "publish.secretFile", base)
         if secret_file is None:
             raise ConfigError("publish.secretFile is required for server publication")
         ca_file = optional_path(ca_file_raw, "publish.caFile", base)
+        if urlparse(publish_url).scheme == "http" and ca_file is not None:
+            raise ConfigError("publish.caFile is not used with plain HTTP")
+        if urlparse(publish_url).scheme == "https" and allow_plain_http:
+            raise ConfigError(
+                "publish.allowPlainHttp must be false when publish.url uses HTTPS"
+            )
         if health_url is not None:
-            health_url = validated_server_url(health_url, "publish.healthUrl")
+            health_url = validated_server_url(
+                health_url,
+                "publish.healthUrl",
+                allow_plain_http=allow_plain_http,
+            )
             if url_origin(health_url) != url_origin(publish_url):
                 raise ConfigError("publish.healthUrl must use the same origin as publish.url")
 
@@ -286,6 +317,7 @@ def load_config(path: Path) -> RefreshConfig:
             request_timeout_seconds=float(request_timeout),
             health_url=health_url,
             health_timeout_seconds=float(timeout),
+            allow_plain_http=allow_plain_http,
         ),
         verbose=verbose,
     )
@@ -701,6 +733,7 @@ def print_config(config_path: Path, config: RefreshConfig) -> int:
             "requestTimeoutSeconds": config.publish.request_timeout_seconds,
             "healthUrl": config.publish.health_url,
             "healthTimeoutSeconds": config.publish.health_timeout_seconds,
+            "allowPlainHttp": config.publish.allow_plain_http,
         },
         "verbose": config.verbose,
     }

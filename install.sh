@@ -14,6 +14,7 @@ PUBLISH_SECRET_SOURCE=""
 TLS_CERT_SOURCE=""
 TLS_KEY_SOURCE=""
 ALLOW_UNAUTHENTICATED_VIEW=false
+ALLOW_PLAIN_HTTP=false
 MAX_UPLOAD_BYTES="20971520"
 DEVELOPMENT=false
 
@@ -35,6 +36,7 @@ Options:
                            Private JSON server configuration (default: admin/admin)
       --allow-unauthenticated-view
                            Allow network viewing without authentication
+      --allow-plain-http   Allow unencrypted HTTP on a non-loopback network
       --max-upload-bytes N Maximum report upload size (default: 20971520)
   -d, --development       Validate files only; do not install systemd service
   -h, --help              Show this help
@@ -53,6 +55,7 @@ while [ $# -gt 0 ]; do
         --tls-key-file) shift; TLS_KEY_SOURCE="$1" ;;
         --server-config-file) shift; SERVER_CONFIG_SOURCE="$1" ;;
         --allow-unauthenticated-view) ALLOW_UNAUTHENTICATED_VIEW=true ;;
+        --allow-plain-http) ALLOW_PLAIN_HTTP=true ;;
         --max-upload-bytes) shift; MAX_UPLOAD_BYTES="$1" ;;
         -d|--development) DEVELOPMENT=true ;;
         -h|--help) usage; exit 0 ;;
@@ -106,6 +109,11 @@ if { [ -n "$TLS_CERT_SOURCE" ] && [ -z "$TLS_KEY_SOURCE" ]; } || \
     echo "--tls-cert-file and --tls-key-file must be provided together" >&2
     exit 2
 fi
+if [ "$ALLOW_PLAIN_HTTP" = true ] && \
+   { [ -n "$TLS_CERT_SOURCE" ] || [ -n "$TLS_KEY_SOURCE" ]; }; then
+    echo "--allow-plain-http cannot be combined with TLS certificate options" >&2
+    exit 2
+fi
 if [ -n "$SERVER_CONFIG_SOURCE" ] && [ ! -s "$SERVER_CONFIG_SOURCE" ]; then
     echo "Server configuration file is missing or empty: $SERVER_CONFIG_SOURCE" >&2
     exit 2
@@ -152,7 +160,7 @@ if [ "$DEVELOPMENT" = false ]; then
     case "$HOST" in
         localhost|127.0.0.1|::1) ;;
         *)
-            if [ -z "$TLS_CERT_SOURCE" ] && \
+            if [ "$ALLOW_PLAIN_HTTP" = false ] && [ -z "$TLS_CERT_SOURCE" ] && \
                { [ ! -f "$INSTALL_DIR/server-cert.pem" ] || [ ! -f "$INSTALL_DIR/server-key.pem" ]; }; then
                 echo "Network serving requires --tls-cert-file and --tls-key-file" >&2
                 exit 2
@@ -195,7 +203,8 @@ if [ -n "$TLS_CERT_SOURCE" ]; then
     install -m 0644 -o 0 -g 0 "$TLS_CERT_SOURCE" "$TLS_CERT_PATH"
     install -m 0640 -o 0 -g "$INSTALL_GROUP" "$TLS_KEY_SOURCE" "$TLS_KEY_PATH"
 fi
-if [ ! -f "$TLS_CERT_PATH" ] || [ ! -f "$TLS_KEY_PATH" ]; then
+if [ "$ALLOW_PLAIN_HTTP" = true ] || \
+   [ ! -f "$TLS_CERT_PATH" ] || [ ! -f "$TLS_KEY_PATH" ]; then
     TLS_CERT_PATH=""
     TLS_KEY_PATH=""
 else
@@ -227,8 +236,12 @@ if [ -z "$TLS_CERT_PATH" ]; then
     case "$HOST" in
         localhost|127.0.0.1|::1) ;;
         *)
-            echo "Network serving requires TLS unless --host is loopback-only" >&2
-            exit 2
+            if [ "$ALLOW_PLAIN_HTTP" = true ]; then
+                :
+            else
+                echo "Network serving requires TLS unless --host is loopback-only" >&2
+                exit 2
+            fi
             ;;
     esac
 fi
@@ -251,6 +264,7 @@ sed \
     -e "s|^Environment=HOMEKIT_INSPECTOR_TLS_KEY_FILE=.*|Environment=HOMEKIT_INSPECTOR_TLS_KEY_FILE=$TLS_KEY_PATH|g" \
     -e "s|^Environment=HOMEKIT_INSPECTOR_SERVER_CONFIG=.*|Environment=HOMEKIT_INSPECTOR_SERVER_CONFIG=$ACTIVE_SERVER_CONFIG_PATH|g" \
     -e "s|^Environment=HOMEKIT_INSPECTOR_ALLOW_UNAUTHENTICATED_VIEW=.*|Environment=HOMEKIT_INSPECTOR_ALLOW_UNAUTHENTICATED_VIEW=$ALLOW_UNAUTHENTICATED_VIEW|g" \
+    -e "s|^Environment=HOMEKIT_INSPECTOR_ALLOW_PLAIN_HTTP=.*|Environment=HOMEKIT_INSPECTOR_ALLOW_PLAIN_HTTP=$ALLOW_PLAIN_HTTP|g" \
     -e "s|^ExecStart=.*|ExecStart=/usr/bin/python3 $INSTALL_DIR/scripts/serve_inspector.py|g" \
     "$SCRIPTPATH/homekit-inspector.service" > "$SERVICE_FILE"
 
@@ -267,6 +281,8 @@ else
 fi
 if [ -n "$TLS_CERT_PATH" ]; then
     echo "TLS enabled"
+elif [ "$ALLOW_PLAIN_HTTP" = true ]; then
+    echo "WARNING: plain HTTP explicitly enabled; report data and viewer credentials are not encrypted" >&2
 else
     echo "TLS disabled"
 fi

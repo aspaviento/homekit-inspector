@@ -207,6 +207,21 @@ class ServeInspectorTests(unittest.TestCase):
             view_auth_enabled=True,
             allow_unauthenticated_view=False,
         )
+        validate_transport(
+            "0.0.0.0",
+            tls_enabled=False,
+            view_auth_enabled=True,
+            allow_unauthenticated_view=False,
+            allow_plain_http=True,
+        )
+        with self.assertRaisesRegex(SystemExit, "must be false"):
+            validate_transport(
+                "0.0.0.0",
+                tls_enabled=True,
+                view_auth_enabled=True,
+                allow_unauthenticated_view=False,
+                allow_plain_http=True,
+            )
         with self.assertRaisesRegex(SystemExit, "requires TLS"):
             validate_transport(
                 "0.0.0.0",

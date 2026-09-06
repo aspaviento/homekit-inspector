@@ -118,7 +118,7 @@ class HomeKitInspectorCliTests(unittest.TestCase):
             self.assertEqual(config.publish.ca_file, root / "secrets/server-ca.pem")
             self.assertIsNone(config.publish.path)
 
-    def test_rejects_remote_server_url_without_https(self):
+    def test_rejects_remote_server_url_without_plain_http_opt_in(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
             path = self.write_config(
@@ -133,6 +133,67 @@ class HomeKitInspectorCliTests(unittest.TestCase):
                 },
             )
             with self.assertRaises(ConfigError):
+                load_config(path)
+
+    def test_loads_remote_plain_http_server_with_explicit_opt_in(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            config = load_config(
+                self.write_config(
+                    root,
+                    {
+                        "version": 1,
+                        "publish": {
+                            "type": "server",
+                            "url": "http://inspector.example:8099/api/v1/report",
+                            "secretFile": "publish-secret",
+                            "healthUrl": "http://inspector.example:8099/health",
+                            "allowPlainHttp": True,
+                        },
+                    },
+                )
+            )
+            self.assertTrue(config.publish.allow_plain_http)
+            self.assertEqual(
+                config.publish.url,
+                "http://inspector.example:8099/api/v1/report",
+            )
+
+    def test_rejects_plain_http_opt_in_for_https_url(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            path = self.write_config(
+                root,
+                {
+                    "version": 1,
+                    "publish": {
+                        "type": "server",
+                        "url": "https://inspector.example/api/v1/report",
+                        "secretFile": "publish-secret",
+                        "allowPlainHttp": True,
+                    },
+                },
+            )
+            with self.assertRaisesRegex(ConfigError, "must be false"):
+                load_config(path)
+
+    def test_rejects_ca_file_for_plain_http(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            path = self.write_config(
+                root,
+                {
+                    "version": 1,
+                    "publish": {
+                        "type": "server",
+                        "url": "http://inspector.example/api/v1/report",
+                        "secretFile": "publish-secret",
+                        "caFile": "server-ca.pem",
+                        "allowPlainHttp": True,
+                    },
+                },
+            )
+            with self.assertRaisesRegex(ConfigError, "not used with plain HTTP"):
                 load_config(path)
 
     def test_rejects_server_url_with_embedded_credentials(self):

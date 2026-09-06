@@ -50,6 +50,7 @@ def serialized_publish(
         "requestTimeoutSeconds": config.publish.request_timeout_seconds,
         "healthUrl": config.publish.health_url,
         "healthTimeoutSeconds": config.publish.health_timeout_seconds,
+        "allowPlainHttp": config.publish.allow_plain_http,
     }
     if config.publish.path is not None:
         publish["path"] = str(config.publish.path)

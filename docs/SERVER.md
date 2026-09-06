@@ -12,7 +12,7 @@ Browser-initiated refresh is outside this version.
 
 ## Security Model
 
-Server publication combines two independent controls:
+HTTPS server publication combines two independent controls:
 
 1. HTTPS encrypts the report and authenticates the server.
 2. HMAC-SHA256 authenticates each publication using a private 256-bit shared
@@ -31,8 +31,11 @@ server protocol can prove that the caller is a particular Python executable.
 Any process that can read the client's secret can impersonate the client, so
 the secret file and the macOS account remain part of the trust boundary.
 
-The server refuses authenticated publication over plain network HTTP. Plain
-HTTP is accepted only on loopback for a TLS reverse-proxy deployment.
+HTTPS remains the default. Plain HTTP on a non-loopback interface requires an
+explicit opt-in on both the server and client. This mode is intended only for a
+trusted LAN or private VPN. HMAC still authenticates publication and protects
+the report digest, but HTTP does not encrypt the report, request metadata, or
+HTTP Basic viewer credentials.
 
 This design follows OWASP guidance that secure REST endpoints use HTTPS and
 that TLS 1.0/1.1 remain disabled. The built-in server uses Python's server-side
@@ -106,7 +109,8 @@ sudo ./install-server.sh \
 
 The installer:
 
-- validates the certificate/key pair and 256-bit secret;
+- validates the certificate/key pair when TLS is configured and validates the
+  256-bit publication secret;
 - installs server code under `/opt/homekit-inspector` by default;
 - stores the served report under `/var/lib/homekit-inspector` by default;
 - installs code, publication secrets, and TLS keys as root-owned files, with
@@ -185,6 +189,50 @@ certificate fingerprint through the administrative channel before importing
 `ca.pem` into the browser or operating-system trust store. Never import
 `ca-key.pem` and do not bypass certificate warnings.
 
+## Trusted LAN Or VPN HTTP
+
+For an installation reachable only through a trusted local network or private
+VPN, the built-in server can explicitly use plain HTTP:
+
+```bash
+sudo ./install-server.sh \
+  --install-dir /opt/homekit-inspector \
+  --data-dir /var/lib/homekit-inspector \
+  --host 0.0.0.0 \
+  --port 8099 \
+  --publish-secret-file /path/to/publish-secret \
+  --server-config-file /path/to/server.json \
+  --allow-plain-http
+```
+
+`--allow-plain-http` cannot be combined with TLS certificate options. On an
+existing HTTPS installation, certificate files are retained but omitted from
+the generated service configuration, so a later reinstall can enable HTTPS
+again.
+
+The macOS client must independently acknowledge plain HTTP:
+
+```json
+{
+  "version": 1,
+  "publish": {
+    "type": "server",
+    "url": "http://inspector-server.example.net:8099/api/v1/report",
+    "secretFile": "/path/to/publish-secret",
+    "allowPlainHttp": true,
+    "requestTimeoutSeconds": 30,
+    "healthUrl": "http://inspector-server.example.net:8099/health",
+    "healthTimeoutSeconds": 5
+  }
+}
+```
+
+This opt-in does not disable HMAC signing, timestamp and nonce validation,
+upload limits, report validation, HTTP Basic viewer authentication, or atomic
+replacement. It disables only transport encryption and server-certificate
+validation. Do not use it on an untrusted Wi-Fi network, a shared network, or a
+server exposed directly to the Internet.
+
 ## Configure The macOS Client
 
 Use `server` publication and reference private files rather than embedding
@@ -214,8 +262,9 @@ homekit-inspector validate-config
 homekit-inspector refresh
 ```
 
-The CLI does not follow redirects during publication and validates the server
-certificate, hostname, response, and returned report digest.
+The CLI does not follow redirects during publication. With HTTPS it validates
+the server certificate and hostname; every server publication validates the
+response and returned report digest.
 
 ## Reverse Proxy Deployment
 
@@ -245,7 +294,8 @@ use the loopback upstream address.
 
 ## Operational Security
 
-- Do not expose the report server through plain HTTP.
+- Use plain HTTP only with explicit opt-in on a trusted LAN or private VPN.
+- Use HTTPS for shared, untrusted, or Internet-accessible networks.
 - Restrict ingress with a firewall or VPN wherever possible.
 - Keep the operating system, Python, TLS library, and reverse proxy patched.
 - Back up neither `publish-secret` nor private keys into public repositories.

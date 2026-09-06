@@ -210,10 +210,13 @@ The server API provides:
 - `GET /api/v1/status`: current report size, modification time, and SHA-256.
 - `GET /health`: server and index availability.
 
-Remote server URLs must use HTTPS. Plain HTTP is accepted only for loopback
-development or a loopback-only upstream behind an HTTPS reverse proxy. See
-[SERVER.md](SERVER.md) for server installation, TLS setup, reverse-proxy
-requirements, credential rotation, and operational security.
+Remote server URLs use HTTPS by default. Plain HTTP requires
+`"allowPlainHttp": true` and is intended only for a trusted LAN or private VPN;
+the server must also have been installed with `--allow-plain-http`. HMAC remains
+enabled, but report content and HTTP Basic viewer credentials are not encrypted.
+Plain HTTP on loopback remains available for development or a reverse-proxy
+upstream. See [SERVER.md](SERVER.md) for server installation, transport options,
+credential rotation, and operational security.
 
 ## Failure Behavior
 

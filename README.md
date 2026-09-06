@@ -319,11 +319,13 @@ Configure the client with `server` publication:
 }
 ```
 
-Server mode requires HTTPS except for a loopback-only reverse-proxy upstream.
-Each request is authenticated with HMAC-SHA256, timestamped, and protected
-against replay; the shared secret never travels over the network. See
-[docs/SERVER.md](docs/SERVER.md) for credential handling, direct TLS, reverse
-proxy, installation, firewall, validation, and rotation guidance.
+Server mode uses HTTPS by default. An explicit plain-HTTP mode is available for
+a trusted LAN or private VPN and must be enabled independently on the server and
+client. Each publication remains authenticated with HMAC-SHA256, timestamped,
+and protected against replay, but plain HTTP does not encrypt the report or
+viewer credentials. See [docs/SERVER.md](docs/SERVER.md) for credential
+handling, transport options, installation, firewall, validation, and rotation
+guidance.
 
 ## Private Overrides
 

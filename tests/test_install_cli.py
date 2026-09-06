@@ -116,6 +116,35 @@ class InstallCliTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(installed_secret.stat().st_mode), 0o600)
             self.assertEqual(stat.S_IMODE(installed_ca.stat().st_mode), 0o600)
 
+    def test_preserves_plain_http_server_opt_in(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp).resolve()
+            source_dir = home / "source"
+            source_dir.mkdir()
+            secret = source_dir / "publish-secret"
+            secret.write_text("ab" * 32 + "\n", encoding="ascii")
+            secret.chmod(0o600)
+            source = source_dir / "refresh.json"
+            source.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "publish": {
+                            "type": "server",
+                            "url": "http://inspector.example:8099/api/v1/report",
+                            "secretFile": "publish-secret",
+                            "healthUrl": "http://inspector.example:8099/health",
+                            "allowPlainHttp": True,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            destination = home / "installed/config.json"
+            install_config(source, destination)
+            installed = json.loads(destination.read_text(encoding="utf-8"))
+            self.assertTrue(installed["publish"]["allowPlainHttp"])
+
     def test_installer_and_uninstaller_in_isolated_home(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp).resolve()

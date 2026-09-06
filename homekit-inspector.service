@@ -19,6 +19,7 @@ Environment=HOMEKIT_INSPECTOR_TLS_CERT_FILE=
 Environment=HOMEKIT_INSPECTOR_TLS_KEY_FILE=
 Environment=HOMEKIT_INSPECTOR_SERVER_CONFIG=/var/lib/homekit-inspector/server.json
 Environment=HOMEKIT_INSPECTOR_ALLOW_UNAUTHENTICATED_VIEW=false
+Environment=HOMEKIT_INSPECTOR_ALLOW_PLAIN_HTTP=false
 ExecStart=/usr/bin/python3 /opt/homekit-inspector/scripts/serve_inspector.py
 Restart=on-failure
 RestartSec=5

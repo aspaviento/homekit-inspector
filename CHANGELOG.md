@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added explicit plain-HTTP server and client configuration for trusted LAN or
+  VPN deployments while retaining HTTPS as the default.
 - Prevented incomplete TLS handshakes from blocking all inspector requests.
 - Added Python 3.14-compatible X.509 CA extensions to generated private server
   credentials and removed an invalid-escape warning from HTML generation.
