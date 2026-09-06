@@ -27,6 +27,7 @@ DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8099
 DEFAULT_INDEX = "homekit_inspector.html"
 DEFAULT_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+DEFAULT_TLS_HANDSHAKE_TIMEOUT_SECONDS = 10.0
 REPORT_ENDPOINT = "/api/v1/report"
 STATUS_ENDPOINT = "/api/v1/status"
 SIGNATURE_PROTOCOL = "homekit-inspector-v1"
@@ -357,6 +358,23 @@ class InspectorServer(ThreadingHTTPServer):
     nonce_lock: threading.Lock
     used_nonces: dict[str, int]
     tls_enabled: bool
+    tls_context: ssl.SSLContext | None = None
+    tls_handshake_timeout: float = DEFAULT_TLS_HANDSHAKE_TIMEOUT_SECONDS
+
+    def process_request_thread(self, request, client_address) -> None:
+        if self.tls_context is None:
+            super().process_request_thread(request, client_address)
+            return
+
+        try:
+            request.settimeout(self.tls_handshake_timeout)
+            request = self.tls_context.wrap_socket(request, server_side=True)
+            request.settimeout(None)
+        except OSError:
+            self.shutdown_request(request)
+            return
+
+        super().process_request_thread(request, client_address)
 
 
 def signature_payload(
@@ -514,7 +532,7 @@ def configure_tls(server: InspectorServer) -> bool:
         context.load_cert_chain(certificate, private_key)
     except (OSError, ssl.SSLError) as exc:
         raise SystemExit(f"Unable to configure TLS certificate: {exc}") from exc
-    server.socket = context.wrap_socket(server.socket, server_side=True)
+    server.tls_context = context
     return True
 
 

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Prevented incomplete TLS handshakes from blocking all inspector requests.
 - Added Python 3.14-compatible X.509 CA extensions to generated private server
   credentials and removed an invalid-escape warning from HTML generation.
 - Added a service-owned private JSON configuration for readable HTTP Basic

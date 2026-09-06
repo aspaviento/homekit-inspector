@@ -5,6 +5,7 @@ import base64
 import hashlib
 import json
 import shutil
+import socket
 import ssl
 import stat
 import subprocess
@@ -72,11 +73,12 @@ def running_server(
     server.used_nonces = {}
     server.capture = capture
     server.tls_enabled = tls_cert is not None
+    server.tls_context = None
     if tls_cert is not None and tls_key is not None:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.minimum_version = ssl.TLSVersion.TLSv1_2
         context.load_cert_chain(tls_cert, tls_key)
-        server.socket = context.wrap_socket(server.socket, server_side=True)
+        server.tls_context = context
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -341,6 +343,40 @@ class ServeInspectorTests(unittest.TestCase):
                 )
             self.assertEqual(digest, hashlib.sha256(VALID_REPORT).hexdigest())
             self.assertEqual((root / DEFAULT_INDEX).read_bytes(), VALID_REPORT)
+
+    @unittest.skipUnless(shutil.which("openssl"), "OpenSSL is required")
+    def test_incomplete_tls_client_does_not_block_other_requests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            credentials = root / "credentials"
+            subprocess.run(
+                [
+                    str(ROOT / "scripts/create-server-credentials.sh"),
+                    "--hostname",
+                    "localhost",
+                    "--output-dir",
+                    str(credentials),
+                    "--days",
+                    "1",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            with running_server(
+                root,
+                tls_cert=credentials / "server-cert.pem",
+                tls_key=credentials / "server-key.pem",
+            ) as base_url:
+                port = int(base_url.rsplit(":", 1)[1])
+                context = ssl.create_default_context(cafile=str(credentials / "ca.pem"))
+                with socket.create_connection(("127.0.0.1", port), timeout=1):
+                    time.sleep(0.05)
+                    with request.urlopen(
+                        f"{base_url}/health", context=context, timeout=2
+                    ) as response:
+                        health = json.load(response)
+            self.assertTrue(health["ok"])
 
     def test_upload_endpoint_is_disabled_without_server_secret(self):
         with tempfile.TemporaryDirectory() as tmp:
