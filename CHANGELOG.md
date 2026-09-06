@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added Python 3.14-compatible X.509 CA extensions to generated private server
+  credentials and removed an invalid-escape warning from HTML generation.
 - Added a service-owned private JSON configuration for readable HTTP Basic
   viewer credentials, installed with initial `admin/admin` values in the
   server data directory and explicitly excluded from HTTP file serving.

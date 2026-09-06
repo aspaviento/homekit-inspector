@@ -77,6 +77,9 @@ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
     -out "$WORK_DIR/ca-key.pem"
 openssl req -x509 -new -sha256 -key "$WORK_DIR/ca-key.pem" \
     -days 3650 -subj "/CN=HomeKit Inspector Local CA" \
+    -addext "basicConstraints=critical,CA:TRUE" \
+    -addext "keyUsage=critical,keyCertSign,cRLSign" \
+    -addext "subjectKeyIdentifier=hash" \
     -out "$WORK_DIR/ca.pem"
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
     -out "$WORK_DIR/server-key.pem"

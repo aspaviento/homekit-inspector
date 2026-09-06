@@ -1121,7 +1121,7 @@ function textOf(rule) {
   return [rule.name, rule.displayTheme, ...rule.when, ...rule.if, ...rule.then, ...rule.events, ...rule.actions, ...rule.rooms, ...rule.notes].join(' ').toLowerCase();
 }
 function normalizeName(value) {
-  return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return String(value ?? '').trim().toLowerCase().replace(/\\s+/g, ' ');
 }
 function normalizeSearch(value) {
   return normalizeName(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
