@@ -8,6 +8,7 @@ and writes a clean rules JSON plus a standalone HTML file for local review.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import sqlite3
 from pathlib import Path
@@ -98,6 +99,26 @@ SERVICE_CAPABILITY_LABELS = {
 
 def load_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_manufacturer_logos(manufacturers):
+    directory = Path(__file__).resolve().parents[1] / "assets" / "manufacturers"
+    catalog = load_json(directory / "catalog.json")
+    aliases = {
+        " ".join(alias.casefold().split()): slug
+        for slug, values in catalog.items() for alias in values
+    }
+    logos = {}
+    for manufacturer in sorted(m for m in manufacturers if isinstance(m, str)):
+        slug = aliases.get(" ".join((manufacturer or "").casefold().split()))
+        if not slug:
+            continue
+        path = directory / f"{slug}.svg"
+        if not path.is_file():
+            continue
+        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        logos[manufacturer] = f"data:image/svg+xml;base64,{encoded}"
+    return logos
 
 
 def translate_rule(text):
@@ -906,6 +927,12 @@ h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: 0; }
 .title-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
 .brand { display: flex; align-items: center; gap: 11px; }
 .card details { overflow-wrap: anywhere; }
+.card-heading { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.card-heading h3, .card-heading h4 { margin: 0; overflow-wrap: anywhere; }
+.card-title { min-width: 0; }
+.manufacturer-logo { width: 36px; height: 36px; flex: 0 0 36px; display: grid; place-items: center; background: #fff; border: 1px solid #dce2ea; border-radius: 6px; }
+.manufacturer-logo img { width: 28px; height: 28px; object-fit: contain; }
+.manufacturer-text { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; overflow-wrap: anywhere; }
 .inspector-version { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
 .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; }
 .brand-mark svg { width: 38px; height: 38px; display: block; }
@@ -1395,11 +1422,21 @@ function bindBridgeLinks() {
     render();
   }));
 }
-function accessoryCard(accessory, options = {}) {
-  const showManufacturer = options.showManufacturer ?? false;
+function cardHeading(accessory, level = 4) {
+  const manufacturer = accessory.manufacturer || '';
+  const logo = Object.hasOwn(data.manufacturerLogos || {}, manufacturer) ? data.manufacturerLogos[manufacturer] : '';
+  const tag = level === 3 ? 'h3' : 'h4';
+  return `<div class="card-heading">
+    ${logo ? `<span class="manufacturer-logo" title="${esc(manufacturer)}"><img src="${esc(logo)}" alt="${esc(manufacturer)}" width="28" height="28"></span>` : ''}
+    <div class="card-title"><${tag}>${esc(accessory.name)}</${tag}>
+      ${manufacturer && !logo ? `<span class="manufacturer-text">${esc(manufacturer)}</span>` : ''}
+    </div>
+  </div>`;
+}
+function accessoryCard(accessory) {
   return `
     <div class="card">
-      <h4>${esc(accessory.name)}</h4>
+      ${cardHeading(accessory)}
       <p>
         <span class="badge">${esc(accessory.room)}</span>
         <span class="badge">${esc(accessory.zone)}</span>
@@ -1407,7 +1444,6 @@ function accessoryCard(accessory, options = {}) {
         ${capabilityBadges(accessory)}
         ${bridgeBadge(accessory)}
       </p>
-      ${showManufacturer && accessory.manufacturer ? `<p><b>Manufacturer:</b> ${esc(accessory.manufacturer)}</p>` : ''}
       ${accessory.model ? `<p><b>Model:</b> ${esc(accessory.model)}</p>` : ''}
       ${versionBlock(accessory)}
       ${accessory.services?.length ? `<p class="empty">${esc(accessory.services.map(service => service.name).slice(0, 8).join(', '))}${accessory.services.length > 8 ? '...' : ''}</p>` : ''}
@@ -1886,7 +1922,7 @@ function renderCapabilities() {
           <span class="badge">${rooms.length} rooms</span>
           <span class="badge">${manufacturers.length} manufacturers</span>
         </div>
-        <div class="grid">${group.accessories.map(accessory => accessoryCard(accessory, {showManufacturer: true})).join('')}</div>
+        <div class="grid">${group.accessories.map(accessory => accessoryCard(accessory)).join('')}</div>
       </div>`;
     }).join('') || '<div class="card empty">No matching capabilities or accessories.</div>'}
     <div class="footer-note">Capabilities are decoded from HomeKit service types and describe accessory semantics independently from automation usage.</div>
@@ -1908,13 +1944,13 @@ function renderHubs() {
     </div>
     <div class="grid">${homeHubs.map(hub => `
       <div class="card">
-        <h4>${esc(hub.name)}</h4>
+        ${cardHeading(hub)}
         <p>
           ${hub.primary ? '<span class="badge active">Primary</span>' : ''}
           <span class="badge ${hub.reachable ? 'active' : 'inactive'}">${hub.reachable ? 'Reachable' : 'Not reachable'}</span>
           ${hub.room ? `<span class="badge">${esc(hub.room)}</span>` : ''}
         </p>
-        <p><b>Model:</b> ${esc([hub.manufacturer, hub.model].filter(Boolean).join(' ') || 'Unknown')}</p>
+        <p><b>Model:</b> ${esc(hub.model || 'Unknown')}</p>
         ${versionBlock(hub, true)}
         ${hub.residentName ? `<p class="empty">Resident name: ${esc(hub.residentName)}</p>` : ''}
       </div>
@@ -1950,18 +1986,18 @@ function renderBridges() {
     </div>
     ${bridges.map(bridge => `
       <div class="section card">
-        <h3>${esc(bridge.name)}</h3>
+        ${cardHeading(bridge, 3)}
         <div class="detail-top">
           <span class="badge">${bridge.accessories.length} accessories</span>
           ${bridge.room ? `<span class="badge">${esc(bridge.room)}</span>` : ''}
-          <span class="badge">${esc([bridge.manufacturer, bridge.model].filter(Boolean).join(' ') || 'Unknown')}</span>
+          <span class="badge">${esc(bridge.model || 'Unknown model')}</span>
         </div>
         ${versionBlock(bridge)}
         <div class="grid">${(bridge.accessories || []).map(accessory => `
           <div class="card">
-            <h4>${esc(accessory.name)}</h4>
+            ${cardHeading(accessory)}
             <p>${accessory.room ? `<span class="badge">${esc(accessory.room)}</span>` : ''} ${matterBadge(accessory)} ${capabilityBadges(accessory)}</p>
-            <p class="empty">${esc([accessory.manufacturer, accessory.model].filter(Boolean).join(' ') || 'Unknown')}</p>
+            <p class="empty">${esc(accessory.model || 'Unknown model')}</p>
             ${versionBlock(accessory)}
           </div>
         `).join('')}</div>
@@ -2173,6 +2209,22 @@ init();
 
 
 def write_html(payload, path):
+    accessories = [
+        accessory
+        for room in (payload.get("layout", {}).get("roomsWithoutZone") or [])
+        for accessory in room.get("accessories", [])
+    ]
+    accessories.extend(
+        accessory for zone in payload.get("layout", {}).get("zones", [])
+        for room in zone.get("rooms", []) if isinstance(room, dict)
+        for accessory in room.get("accessories", [])
+    )
+    infrastructure = payload.get("infrastructure", {})
+    accessories.extend(infrastructure.get("homeHubs", []))
+    for bridge in infrastructure.get("bridges", []):
+        accessories.append(bridge)
+        accessories.extend(bridge.get("accessories", []))
+    payload["manufacturerLogos"] = load_manufacturer_logos({a.get("manufacturer", "") for a in accessories})
     payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     payload_json = (
         payload_json
@@ -2247,8 +2299,8 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     json_path = out_dir / "homekit_inspector_data.json"
     html_path = out_dir / "homekit_inspector.html"
-    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     write_html(payload, html_path)
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote {json_path}")
     print(f"Wrote {html_path}")
 

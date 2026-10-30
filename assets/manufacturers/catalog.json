@@ -1,0 +1,12 @@
+{
+  "apple": ["Apple", "Apple Inc.", "Apple Inc"],
+  "shelly": ["Shelly"],
+  "ring": ["Ring"],
+  "siemens": ["Siemens"],
+  "philipshue": ["Philips Hue"],
+  "samsung": ["Samsung", "Samsung Electronics"],
+  "lg": ["LG", "LG Electronics"],
+  "sonos": ["Sonos", "Sonos, Inc."],
+  "homeassistant": ["Home Assistant"],
+  "homebridge": ["Homebridge"]
+}
