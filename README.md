@@ -62,6 +62,8 @@ HomeKit.
   private overrides are kept out of version control.
 
 See [docs/PRIVACY.md](docs/PRIVACY.md) for the publishing checklist.
+See [SECURITY.md](SECURITY.md) for supported versions and private vulnerability
+reporting.
 See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Requirements

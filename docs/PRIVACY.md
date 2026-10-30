@@ -51,8 +51,11 @@ port forwarding, or an unauthenticated internet-facing reverse proxy.
 
 Server publication keeps its HMAC secret in a separate `0600` file. The secret
 must not be committed, embedded in generated HTML, placed in the server's
-document root, passed as an argument, or transmitted. Server mode requires
-HTTPS for network transport and validates the server certificate and hostname.
+document root, passed as an argument, or transmitted. Server mode uses
+HTTPS by default and validates the server certificate and hostname. Explicit
+plain-HTTP mode is available for a trusted LAN or private VPN; it does not
+encrypt report data or HTTP Basic credentials. HMAC authenticates publication
+in either mode but does not provide transport encryption.
 The report server also keeps readable HTTP Basic credentials in a service-owned
 `server.json` with mode `0600`. The file is explicitly blocked from HTTP
 serving and must not be copied to another served filename.

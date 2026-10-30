@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added a security policy and private vulnerability reporting guidance, and
+  aligned privacy documentation with the explicit plain-HTTP option.
+
 ## 0.4.0 - 2026-10-30
 
 - Added explicit plain-HTTP server and client configuration for trusted LAN or
