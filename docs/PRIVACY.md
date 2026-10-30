@@ -17,6 +17,8 @@ schedules. Generated files are sensitive by default.
 - theme assignments from a real home
 - private overrides from a real home
 - screenshots of the inspector from a real home
+- publication secrets, viewer passwords, private CA keys, and TLS private keys
+- `/var/lib/homekit-inspector/server.json` or any copied server configuration
 
 These files are kept out of public commits.
 
@@ -46,6 +48,14 @@ Serving `homekit_inspector.html` from a Raspberry Pi or another LAN host does
 not make the report less sensitive. The served directory remains private, and
 the report is intended only for a trusted LAN or VPN rather than public DNS,
 port forwarding, or an unauthenticated internet-facing reverse proxy.
+
+Server publication keeps its HMAC secret in a separate `0600` file. The secret
+must not be committed, embedded in generated HTML, placed in the server's
+document root, passed as an argument, or transmitted. Server mode requires
+HTTPS for network transport and validates the server certificate and hostname.
+The report server also keeps readable HTTP Basic credentials in a service-owned
+`server.json` with mode `0600`. The file is explicitly blocked from HTTP
+serving and must not be copied to another served filename.
 
 ## Homebridge Context
 

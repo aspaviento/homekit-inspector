@@ -78,12 +78,12 @@ def open_readonly_sqlite(path):
     return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
 
 
-def build_characteristic_ref_lookup(db_path):
+def build_characteristic_ref_lookup(db_path, home_id=None):
     if not db_path:
         return {}
     conn = open_readonly_sqlite(db_path)
     cur = conn.cursor()
-    cur.execute(
+    query = (
         "SELECT a.ZCONFIGUREDNAME, a.ZPROVIDEDNAME, a.ZROOM, "
         "a.ZMODELID, s.ZINSTANCEID, s.ZEXPECTEDCONFIGUREDNAME, s.ZNAME, "
         "c.ZINSTANCEID, c.ZMANUFACTURERDESCRIPTION, c.ZFORMAT, r.ZNAME "
@@ -92,6 +92,11 @@ def build_characteristic_ref_lookup(db_path):
         "JOIN ZMKFCHARACTERISTIC c ON c.ZSERVICE = s.Z_PK "
         "LEFT JOIN ZMKFROOM r ON r.Z_PK = a.ZROOM"
     )
+    parameters = ()
+    if home_id is not None:
+        query += " WHERE a.ZHOME = ?"
+        parameters = (home_id,)
+    cur.execute(query, parameters)
     lookup = {}
     for row in cur.fetchall():
         (

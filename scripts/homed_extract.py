@@ -479,13 +479,18 @@ def decode_shortcut_workflow(data: bytes) -> list[dict]:
 # Lookup-table builders
 # ---------------------------------------------------------------------------
 
-def _build_room_lookup(cur: sqlite3.Cursor) -> dict[int, str]:
+def _build_room_lookup(cur: sqlite3.Cursor, home_id: int | None) -> dict[int, str]:
     """Z_PK -> room name."""
-    cur.execute("SELECT Z_PK, ZNAME FROM ZMKFROOM")
+    if home_id is None:
+        cur.execute("SELECT Z_PK, ZNAME FROM ZMKFROOM")
+    else:
+        cur.execute("SELECT Z_PK, ZNAME FROM ZMKFROOM WHERE ZHOME = ?", (home_id,))
     return {row[0]: row[1] for row in cur.fetchall()}
 
 
-def _build_zone_lookup(cur: sqlite3.Cursor, rooms: dict[int, str]) -> dict[str, list[str]]:
+def _build_zone_lookup(
+    cur: sqlite3.Cursor, rooms: dict[int, str], home_id: int | None
+) -> dict[str, list[str]]:
     """Return HomeKit zone name -> sorted room names.
 
     CoreData relationship table names can change between schema versions, so
@@ -506,14 +511,19 @@ def _build_zone_lookup(cur: sqlite3.Cursor, rooms: dict[int, str]) -> dict[str, 
 
     zones: dict[str, set[str]] = {}
     for table_name, room_col, zone_col in candidates:
-        cur.execute(
+        query = (
             "SELECT z.ZNAME, zr."
             f"{_quote_identifier(room_col)} "
             f"FROM {_quote_identifier(table_name)} zr "
             "JOIN ZMKFZONE z ON z.Z_PK = zr."
             f"{_quote_identifier(zone_col)} "
-            "ORDER BY z.ZNAME"
         )
+        parameters = ()
+        if home_id is not None:
+            query += "WHERE z.ZHOME = ? "
+            parameters = (home_id,)
+        query += "ORDER BY z.ZNAME"
+        cur.execute(query, parameters)
         found = False
         candidate_zones: dict[str, set[str]] = {}
         for zone_name, room_pk in cur.fetchall():
@@ -529,14 +539,19 @@ def _build_zone_lookup(cur: sqlite3.Cursor, rooms: dict[int, str]) -> dict[str, 
 
 
 def _build_accessory_lookup(
-    cur: sqlite3.Cursor, rooms: dict[int, str]
+    cur: sqlite3.Cursor, rooms: dict[int, str], home_id: int | None
 ) -> dict[int, dict]:
     """Z_PK -> {name, providedName, manufacturer, model, uuid, room}."""
     lookup: dict[int, dict] = {}
-    cur.execute(
+    query = (
         "SELECT Z_PK, ZCONFIGUREDNAME, ZPROVIDEDNAME, ZMANUFACTURER, ZMODEL, "
         "ZUNIQUEIDENTIFIER, ZROOM FROM ZMKFACCESSORY"
     )
+    parameters = ()
+    if home_id is not None:
+        query += " WHERE ZHOME = ?"
+        parameters = (home_id,)
+    cur.execute(query, parameters)
     for pk, name, provided_name, mfr, model, uid, room_pk in cur.fetchall():
         lookup[pk] = {
             "name": name,
@@ -560,6 +575,8 @@ def _build_service_lookup(
         "FROM ZMKFSERVICE"
     )
     for pk, name, acc_pk, configured_name, provided_name, model_id in cur.fetchall():
+        if acc_pk not in accessories:
+            continue
         acc_info = accessories.get(acc_pk, {})
         lookup[pk] = {
             "name": configured_name or name,
@@ -582,6 +599,8 @@ def _build_characteristic_lookup(
         "FROM ZMKFCHARACTERISTIC"
     )
     for pk, ztype, svc_pk, instance_id, desc, fmt in cur.fetchall():
+        if svc_pk not in services:
+            continue
         char_type = None
         if ztype:
             try:
@@ -865,34 +884,37 @@ def _build_entity_type_lookup(cur: sqlite3.Cursor) -> dict[int, str]:
     return {int(ent): _simplify_entity_name(name or "") for ent, name in cur.fetchall()}
 
 
-def _extract_home_name(cur: sqlite3.Cursor) -> str | None:
-    """Return the primary HomeKit home name when the schema exposes it."""
+def _extract_home_selection(cur: sqlite3.Cursor) -> dict:
+    """Return the primary HomeKit home and the number of available homes."""
+    try:
+        cur.execute("SELECT Z_PK, ZNAME FROM ZMKFHOME ORDER BY Z_PK")
+        homes = [{"id": row[0], "name": row[1]} for row in cur.fetchall()]
+    except sqlite3.Error:
+        homes = []
+
+    primary_id = None
     try:
         cur.execute(
-            "SELECT h.ZNAME "
-            "FROM ZMKFHOMEMANAGER hm "
-            "JOIN ZMKFHOME h ON h.Z_PK = hm.ZPRIMARYHOME "
-            "WHERE h.ZNAME IS NOT NULL "
-            "ORDER BY hm.Z_PK "
+            "SELECT ZPRIMARYHOME FROM ZMKFHOMEMANAGER "
+            "WHERE ZPRIMARYHOME IS NOT NULL ORDER BY Z_PK "
             "LIMIT 1"
         )
         row = cur.fetchone()
-        if row and row[0]:
-            return row[0]
+        primary_id = row[0] if row else None
     except sqlite3.Error:
         pass
 
-    try:
-        cur.execute(
-            "SELECT ZNAME FROM ZMKFHOME "
-            "WHERE ZNAME IS NOT NULL "
-            "ORDER BY Z_PK "
-            "LIMIT 1"
-        )
-        row = cur.fetchone()
-        return row[0] if row and row[0] else None
-    except sqlite3.Error:
-        return None
+    selected = next((home for home in homes if home["id"] == primary_id), None)
+    selection = "primary"
+    if selected is None and homes:
+        selected = homes[0]
+        selection = "first"
+    return {
+        "id": selected["id"] if selected else None,
+        "name": selected["name"] if selected else None,
+        "selection": selection if selected else "unavailable",
+        "availableCount": len(homes),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -926,15 +948,21 @@ def extract(db_path: str, verbose: bool = False) -> dict:
     if verbose:
         print("[*] Building lookup tables ...", file=sys.stderr)
 
-    home_name = _extract_home_name(cur)
-    rooms = _build_room_lookup(cur)
-    zones = _build_zone_lookup(cur, rooms)
-    acc_names = _build_accessory_lookup(cur, rooms)
+    home = _extract_home_selection(cur)
+    home_id = home["id"]
+    rooms = _build_room_lookup(cur, home_id)
+    zones = _build_zone_lookup(cur, rooms, home_id)
+    acc_names = _build_accessory_lookup(cur, rooms, home_id)
     svc_names = _build_service_lookup(cur, acc_names)
     char_info, char_by_service_instance = _build_characteristic_lookup(cur, svc_names)
     entity_type_names = _build_entity_type_lookup(cur)
 
     if verbose:
+        print(
+            f"    Home: {home['name'] or '(not identified)'} "
+            f"({home['selection']}; {home['availableCount']} available)",
+            file=sys.stderr,
+        )
         print(
             f"    {len(rooms)} rooms, {len(acc_names)} accessories, "
             f"{len(svc_names)} services, {len(char_info)} characteristics",
@@ -955,12 +983,18 @@ def extract(db_path: str, verbose: bool = False) -> dict:
             file=sys.stderr,
         )
 
-    cur.execute(
+    trigger_query = (
         "SELECT t.Z_PK, t.Z_ENT, t.ZNAME, t.ZCONFIGUREDNAME, t.ZACTIVE, "
         "t.ZEVALUATIONCONDITION, t.ZSIGNIFICANTEVENT, "
         "t.ZSIGNIFICANTEVENTOFFSETSECONDS, t.ZMOSTRECENTFIREDATE, t.ZEXECUTEONCE "
-        "FROM ZMKFTRIGGER t ORDER BY t.ZCONFIGUREDNAME"
+        "FROM ZMKFTRIGGER t "
     )
+    trigger_parameters = ()
+    if home_id is not None:
+        trigger_query += "WHERE t.ZHOME = ? "
+        trigger_parameters = (home_id,)
+    trigger_query += "ORDER BY t.ZCONFIGUREDNAME"
+    cur.execute(trigger_query, trigger_parameters)
     triggers = cur.fetchall()
 
     all_automations: list[dict] = []
@@ -1086,7 +1120,10 @@ def extract(db_path: str, verbose: bool = False) -> dict:
         "extractionSource": "homed_core.sqlite",
         "extractionDate": datetime.datetime.now().isoformat(),
         "databasePath": db_path,
-        "homeName": home_name,
+        "homeName": home["name"],
+        "homeId": home_id,
+        "homeSelection": home["selection"],
+        "availableHomeCount": home["availableCount"],
         "stats": {
             "totalAutomations": len(all_automations),
             "shortcutAutomations": len(shortcut_autos),
@@ -1180,6 +1217,13 @@ def main() -> None:
     except sqlite3.DatabaseError as exc:
         print(f"[ERROR] Database error: {exc}", file=sys.stderr)
         sys.exit(3)
+
+    print(
+        f"[*] Selected home: {output.get('homeName') or '(not identified)'} "
+        f"({output.get('homeSelection')}; "
+        f"{output.get('availableHomeCount', 0)} available)",
+        file=sys.stderr,
+    )
 
     # -- Write JSON ---------------------------------------------------------
     with open(args.output, "w", encoding="utf-8") as fh:
