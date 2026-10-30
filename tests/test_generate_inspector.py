@@ -1,6 +1,7 @@
 import subprocess
 import json
 import base64
+import struct
 import sys
 import tempfile
 import unittest
@@ -30,12 +31,16 @@ class FilterMarkupParser(HTMLParser):
 
 class GenerateInspectorTests(unittest.TestCase):
     def test_manufacturer_logos_are_embedded_with_conservative_matching(self):
-        logos = load_manufacturer_logos({"Apple Inc.", "  sHeLlY  ", "Ring", "Eufy", "Philips", "", "Unknown"})
-        self.assertEqual(set(logos), {"Apple Inc.", "  sHeLlY  ", "Ring"})
+        logos = load_manufacturer_logos({"Apple Inc.", "  sHeLlY  ", "Ring", "Eufy", "Signify Netherlands B.V.", "Philips", "", "Unknown"})
+        self.assertEqual(set(logos), {"Apple Inc.", "  sHeLlY  ", "Ring", "Eufy", "Signify Netherlands B.V."})
         for value in logos.values():
-            self.assertTrue(value.startswith("data:image/svg+xml;base64,"))
-            svg = ET.fromstring(base64.b64decode(value.split(",", 1)[1]))
-            self.assertEqual(svg.tag, "{http://www.w3.org/2000/svg}svg")
+            self.assertTrue(value.startswith("data:image/png;base64,"))
+            image = base64.b64decode(value.split(",", 1)[1])
+            self.assertEqual(image[:8], b'\x89PNG\r\n\x1a\n')
+            width, height = struct.unpack('>II', image[16:24])
+            self.assertGreater(width, 1)
+            self.assertGreater(height, 1)
+            self.assertEqual(image[25], 6)
 
     def test_logo_assets_are_complete_and_have_no_external_resources(self):
         directory = ROOT / "assets" / "manufacturers"
@@ -45,6 +50,7 @@ class GenerateInspectorTests(unittest.TestCase):
             for element in svg.iter():
                 self.assertNotIn(element.tag.rsplit("}", 1)[-1], {"script", "image", "use", "foreignObject"})
                 self.assertFalse(any(key.endswith("href") for key in element.attrib))
+            self.assertTrue((directory / f"{slug}.png").is_file())
 
     def test_logos_cover_bridges_and_hubs_without_database_access(self):
         payload = {
