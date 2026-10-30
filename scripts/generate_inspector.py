@@ -50,6 +50,27 @@ REPORT_THEME_TO_EXPLORER_THEME = {
 }
 
 SERVICE_CAPABILITY_LABELS = {
+    "00000041-0000-1000-8000-0026BB765291": "Garage Door",
+    "00000044-0000-1000-8000-0026BB765291": "Lock Management",
+    "00000045-0000-1000-8000-0026BB765291": "Lock",
+    "00000047-0000-1000-8000-0026BB765291": "Outlet",
+    "0000004A-0000-1000-8000-0026BB765291": "Thermostat",
+    "00000081-0000-1000-8000-0026BB765291": "Door",
+    "00000082-0000-1000-8000-0026BB765291": "Humidity",
+    "00000084-0000-1000-8000-0026BB765291": "Light Level",
+    "0000008A-0000-1000-8000-0026BB765291": "Temperature",
+    "0000008B-0000-1000-8000-0026BB765291": "Window",
+    "0000008D-0000-1000-8000-0026BB765291": "Air Quality",
+    "00000096-0000-1000-8000-0026BB765291": "Battery",
+    "000000BB-0000-1000-8000-0026BB765291": "Air Purifier",
+    "000000BC-0000-1000-8000-0026BB765291": "Heater / Cooler",
+    "000000BD-0000-1000-8000-0026BB765291": "Humidifier / Dehumidifier",
+    "000000B9-0000-1000-8000-0026BB765291": "Slats",
+    "000000BA-0000-1000-8000-0026BB765291": "Filter Maintenance",
+    "000000CF-0000-1000-8000-0026BB765291": "Irrigation",
+    "000000D7-0000-1000-8000-0026BB765291": "Faucet",
+    "00000228-0000-1000-8000-0026BB765291": "Smart Speaker",
+    "000000D9-0000-1000-8000-0026BB765291": "Input Source",
     "0000007E-0000-1000-8000-0026BB765291": "Security System",
     "0000007F-0000-1000-8000-0026BB765291": "CO",
     "00000080-0000-1000-8000-0026BB765291": "Contact",
@@ -66,7 +87,6 @@ SERVICE_CAPABILITY_LABELS = {
     "000000B7-0000-1000-8000-0026BB765291": "Fan",
     "000000D0-0000-1000-8000-0026BB765291": "Valve",
     "000000D8-0000-1000-8000-0026BB765291": "TV / Media",
-    "000000D9-0000-1000-8000-0026BB765291": "TV / Media",
     "000000DA-0000-1000-8000-0026BB765291": "TV / Media",
     "00000110-0000-1000-8000-0026BB765291": "Camera",
     "00000112-0000-1000-8000-0026BB765291": "Microphone",
@@ -324,6 +344,47 @@ def service_capability(service_type):
     return SERVICE_CAPABILITY_LABELS.get((service_type or "").upper(), "")
 
 
+def database_columns(conn, table):
+    return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def version_text(value):
+    if isinstance(value, bytes):
+        try:
+            value = value.decode("utf-8")
+        except UnicodeDecodeError:
+            return ""
+    if not isinstance(value, str):
+        return ""
+    value = value.strip()
+    return value if value and not any(ord(char) < 32 for char in value) else ""
+
+
+def load_accessory_versions(conn, home_id=None):
+    fields = ["ZSOFTWAREVERSION", "ZFIRMWAREVERSION", "ZDISPLAYABLEFIRMWAREVERSION"]
+    columns = database_columns(conn, "ZMKFACCESSORY")
+    expressions = [field if field in columns else "NULL" for field in fields]
+    query = "SELECT Z_PK, " + ", ".join(expressions) + " FROM ZMKFACCESSORY"
+    parameters = ()
+    if home_id is not None:
+        query += " WHERE ZHOME = ?"
+        parameters = (home_id,)
+    result = {}
+    for pk, software, firmware, displayable in conn.execute(query, parameters):
+        software, firmware, displayable = map(version_text, (software, firmware, displayable))
+        result[pk] = {
+            "softwareVersion": software,
+            "firmwareVersion": displayable or firmware,
+            "rawFirmwareVersion": firmware,
+            "displayableFirmwareVersion": displayable,
+            "softwareVersionSource": "ZSOFTWAREVERSION" if software else "",
+            "firmwareVersionSource": (
+                "ZDISPLAYABLEFIRMWAREVERSION" if displayable else "ZFIRMWAREVERSION" if firmware else ""
+            ),
+        }
+    return result
+
+
 def load_home_layout(db_path, fallback_data, home_id=None):
     zones = [
         {
@@ -337,6 +398,7 @@ def load_home_layout(db_path, fallback_data, home_id=None):
 
     conn = open_readonly_sqlite(db_path)
     cur = conn.cursor()
+    versions = load_accessory_versions(conn, home_id)
     query = (
         "SELECT acc.Z_PK, acc.ZCONFIGUREDNAME, acc.ZPROVIDEDNAME, "
         "acc.ZMANUFACTURER, acc.ZMODEL, acc.ZUNIQUEIDENTIFIER, acc.ZROOM, r.ZNAME, "
@@ -377,6 +439,7 @@ def load_home_layout(db_path, fallback_data, home_id=None):
             "room": room_name,
             "services": [],
             "capabilities": [],
+            **versions.get(pk, {}),
             **matter_info(matter_node_id, matter_vendor_id, matter_product_id),
         }
 
@@ -391,7 +454,9 @@ def load_home_layout(db_path, fallback_data, home_id=None):
             continue
         service_type = homekit_uuid(service_type_blob)
         capability = service_capability(service_type)
-        service_name = capability or configured or name or provided
+        service_name = capability or configured or name or provided or (
+            f"Unclassified service ({service_type})" if service_type else ""
+        )
         if capability and capability not in accessory["capabilities"]:
             accessory["capabilities"].append(capability)
         if not service_name and not capability:
@@ -400,6 +465,9 @@ def load_home_layout(db_path, fallback_data, home_id=None):
             {
                 "id": pk,
                 "name": service_name or capability,
+                "configuredName": configured or "",
+                "originalName": name or "",
+                "providedName": provided or "",
                 "serviceType": service_type,
                 "capability": capability,
             }
@@ -418,7 +486,10 @@ def load_home_layout(db_path, fallback_data, home_id=None):
             seen = set()
             services = []
             for service in accessory["services"]:
-                key = service["name"].lower()
+                key = (
+                    service["name"].lower(), service["serviceType"],
+                    service["configuredName"], service["originalName"], service["providedName"],
+                )
                 if key in seen:
                     continue
                 seen.add(key)
@@ -458,6 +529,7 @@ def load_infrastructure(db_path, home_id=None):
         return {"homeHubs": [], "bridges": []}
     conn = open_readonly_sqlite(db_path)
     cur = conn.cursor()
+    versions = load_accessory_versions(conn, home_id)
 
     selection_query = "SELECT ZPREFERREDRESIDENTIDSIDENTIFIERS FROM ZMKFRESIDENTSELECTION "
     selection_parameters = ()
@@ -509,6 +581,7 @@ def load_infrastructure(db_path, home_id=None):
                 "room": room or "",
                 "reachable": bool(reachable),
                 "primary": is_primary,
+                **versions.get(accessory_id, {}),
             }
         )
 
@@ -578,6 +651,7 @@ def load_infrastructure(db_path, home_id=None):
                 "model": host_model or "",
                 "room": host_room or "",
                 "accessories": [],
+                **versions.get(host_id, {}),
             },
         )
         bridge["accessories"].append(
@@ -588,6 +662,7 @@ def load_infrastructure(db_path, home_id=None):
                 "model": child_model or "",
                 "room": child_room or "",
                 "capabilities": sorted(capabilities_by_accessory.get(child_id, set())),
+                **versions.get(child_id, {}),
                 **matter_info(child_matter_node_id, child_matter_vendor_id, child_matter_product_id),
             }
         )
@@ -830,6 +905,7 @@ header { position: sticky; top: 0; z-index: 2; background: var(--header-bg); bor
 h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: 0; }
 .title-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
 .brand { display: flex; align-items: center; gap: 11px; }
+.card details { overflow-wrap: anywhere; }
 .inspector-version { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
 .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; }
 .brand-mark svg { width: 38px; height: 38px; display: block; }
@@ -1153,11 +1229,13 @@ function accessoryText(accessory) {
     accessory.name,
     accessory.manufacturer,
     accessory.model,
+    accessory.softwareVersion,
+    accessory.firmwareVersion,
     accessory.room,
     accessory.zone,
     accessory.isMatter ? 'Matter' : '',
     ...(accessory.capabilities || []),
-    ...(accessory.services || []).map(service => service.name),
+    ...(accessory.services || []).flatMap(service => [service.name, service.configuredName, service.originalName, service.providedName]),
   ].join(' ').toLowerCase();
 }
 function accessoryMatchesFilters(accessory, {room = '', capability = '', manufacturer = ''} = {}) {
@@ -1171,7 +1249,10 @@ function accessoryAliases(accessory) {
     accessory.name,
     accessory.configuredName,
     accessory.providedName,
-    ...(accessory.services || []).map(service => service.name),
+    ...(accessory.services || []).flatMap(service => [
+      service.configuredName, service.originalName, service.providedName,
+      service.originalName === undefined ? service.name : '',
+    ]),
   ]).filter(alias => normalizeName(alias).length >= 3);
 }
 function buildAliasIndex() {
@@ -1328,9 +1409,26 @@ function accessoryCard(accessory, options = {}) {
       </p>
       ${showManufacturer && accessory.manufacturer ? `<p><b>Manufacturer:</b> ${esc(accessory.manufacturer)}</p>` : ''}
       ${accessory.model ? `<p><b>Model:</b> ${esc(accessory.model)}</p>` : ''}
+      ${versionBlock(accessory)}
       ${accessory.services?.length ? `<p class="empty">${esc(accessory.services.map(service => service.name).slice(0, 8).join(', '))}${accessory.services.length > 8 ? '...' : ''}</p>` : ''}
       ${automationUsageBlock(accessory)}
     </div>
+  `;
+}
+function versionBlock(accessory, isHub = false) {
+  const software = accessory.softwareVersion || '';
+  const firmware = accessory.firmwareVersion || '';
+  const meaningfulFirmware = firmware && !/^0(?:\\.0)*$/.test(firmware);
+  const details = [
+    ['Software', software, accessory.softwareVersionSource],
+    ['Firmware', accessory.rawFirmwareVersion, 'ZFIRMWAREVERSION'],
+    ['Display firmware', accessory.displayableFirmwareVersion, 'ZDISPLAYABLEFIRMWAREVERSION'],
+  ].filter(([, value]) => value);
+  return `
+    ${software ? `<p><b>Software:</b> ${esc(software)}</p>` : ''}
+    ${!isHub && meaningfulFirmware && firmware !== software ? `<p><b>Firmware:</b> ${esc(firmware)}</p>` : ''}
+    ${isHub && !software ? `<p><b>Software:</b> Not recorded</p>` : ''}
+    ${details.length ? `<details class="empty"><summary>Recorded version fields</summary>${details.map(([label, value, source]) => `<div>${esc(label)}: ${esc(value)} <small>(${esc(source || 'Unknown source')})</small></div>`).join('')}</details>` : ''}
   `;
 }
 function manufacturers() {
@@ -1353,13 +1451,13 @@ function capabilityGroups() {
   return [...groups.values()].sort((a, b) => b.accessories.length - a.accessories.length || a.name.localeCompare(b.name));
 }
 function hubText(hub) {
-  return searchableText([hub.name, hub.residentName, hub.manufacturer, hub.model, hub.room, hub.primary ? 'primary' : '', hub.reachable ? 'reachable' : 'not reachable']);
+  return searchableText([hub.name, hub.residentName, hub.manufacturer, hub.model, hub.room, hub.softwareVersion, hub.firmwareVersion, hub.primary ? 'primary' : '', hub.reachable ? 'reachable' : 'not reachable']);
 }
 function bridgeOwnText(bridge) {
   return searchableText([bridge.name, bridge.manufacturer, bridge.model, bridge.room]);
 }
 function bridgeAccessoryText(accessory) {
-  return searchableText([accessory.name, accessory.manufacturer, accessory.model, accessory.room, accessory.isMatter ? 'Matter' : '', ...(accessory.capabilities || [])]);
+  return searchableText([accessory.name, accessory.manufacturer, accessory.model, accessory.room, accessory.softwareVersion, accessory.firmwareVersion, accessory.isMatter ? 'Matter' : '', ...(accessory.capabilities || [])]);
 }
 function contextText(source) {
   return [
@@ -1817,6 +1915,7 @@ function renderHubs() {
           ${hub.room ? `<span class="badge">${esc(hub.room)}</span>` : ''}
         </p>
         <p><b>Model:</b> ${esc([hub.manufacturer, hub.model].filter(Boolean).join(' ') || 'Unknown')}</p>
+        ${versionBlock(hub, true)}
         ${hub.residentName ? `<p class="empty">Resident name: ${esc(hub.residentName)}</p>` : ''}
       </div>
     `).join('') || '<div class="card empty">No matching home hubs.</div>'}</div>
@@ -1857,11 +1956,13 @@ function renderBridges() {
           ${bridge.room ? `<span class="badge">${esc(bridge.room)}</span>` : ''}
           <span class="badge">${esc([bridge.manufacturer, bridge.model].filter(Boolean).join(' ') || 'Unknown')}</span>
         </div>
+        ${versionBlock(bridge)}
         <div class="grid">${(bridge.accessories || []).map(accessory => `
           <div class="card">
             <h4>${esc(accessory.name)}</h4>
             <p>${accessory.room ? `<span class="badge">${esc(accessory.room)}</span>` : ''} ${matterBadge(accessory)} ${capabilityBadges(accessory)}</p>
             <p class="empty">${esc([accessory.manufacturer, accessory.model].filter(Boolean).join(' ') || 'Unknown')}</p>
+            ${versionBlock(accessory)}
           </div>
         `).join('')}</div>
       </div>
