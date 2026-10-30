@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.5.0 - 2026-10-30
+
+- Added recorded software and firmware versions to accessories, bridges, and
+  hubs, with raw field provenance available in expandable details.
+- Expanded standard service capabilities for climate, environment, power
+  outlets, locks, irrigation, and media input sources. Unclassified services
+  retain their UUID without inferred capabilities.
+
 ## 0.4.1 - 2026-10-30
 
 - Display the report generator version in the inspector header and metadata.

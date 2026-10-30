@@ -8,7 +8,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from generate_inspector import load_home_layout, load_infrastructure, load_scenes  # noqa: E402
+from generate_inspector import (  # noqa: E402
+    load_accessory_versions, load_home_layout, load_infrastructure, load_scenes,
+    service_capability, version_text,
+)
 from homed_extract import (  # noqa: E402
     _build_accessory_lookup,
     _build_characteristic_lookup,
@@ -20,6 +23,44 @@ from homed_extract import (  # noqa: E402
 
 
 class MultiHomeTests(unittest.TestCase):
+    def test_version_fields_preserve_sources_and_filter_homes(self):
+        connection = sqlite3.connect(":memory:")
+        connection.executescript("""
+            CREATE TABLE ZMKFACCESSORY (
+                Z_PK INTEGER, ZHOME INTEGER, ZSOFTWAREVERSION BLOB,
+                ZFIRMWAREVERSION TEXT, ZDISPLAYABLEFIRMWAREVERSION TEXT
+            );
+            INSERT INTO ZMKFACCESSORY VALUES
+                (1, 1, X'32372E32', '18.0', NULL),
+                (2, 1, NULL, '16973889.0', '1.3.0'),
+                (3, 2, NULL, '2.0', NULL);
+        """)
+        versions = load_accessory_versions(connection, 1)
+        self.assertEqual(set(versions), {1, 2})
+        self.assertEqual(versions[1]["softwareVersion"], "27.2")
+        self.assertEqual(versions[1]["firmwareVersion"], "18.0")
+        self.assertEqual(versions[2]["firmwareVersion"], "1.3.0")
+        self.assertEqual(versions[2]["rawFirmwareVersion"], "16973889.0")
+        self.assertEqual(versions[2]["firmwareVersionSource"], "ZDISPLAYABLEFIRMWAREVERSION")
+        connection.close()
+
+    def test_version_fields_are_optional_in_older_schemas(self):
+        connection = sqlite3.connect(":memory:")
+        connection.execute("CREATE TABLE ZMKFACCESSORY (Z_PK INTEGER, ZHOME INTEGER)")
+        connection.execute("INSERT INTO ZMKFACCESSORY VALUES (1, 1)")
+        self.assertEqual(load_accessory_versions(connection, 1)[1]["softwareVersion"], "")
+        self.assertEqual(version_text(b"\xff\xfe"), "")
+        self.assertEqual(version_text("27.2\ninvalid"), "")
+        connection.close()
+
+    def test_standard_capabilities_use_service_uuid_not_name(self):
+        for short, label in {
+            "47": "Outlet", "45": "Lock", "82": "Humidity", "8A": "Temperature",
+            "96": "Battery", "4A": "Thermostat", "CF": "Irrigation", "D9": "Input Source",
+        }.items():
+            self.assertEqual(service_capability(f"000000{short}-0000-1000-8000-0026BB765291"), label)
+        self.assertEqual(service_capability("12345678-0000-1000-8000-0026BB765291"), "")
+
     def test_extractor_selects_primary_home_and_filters_lookups(self):
         connection = sqlite3.connect(":memory:")
         cursor = connection.cursor()
@@ -141,6 +182,16 @@ class MultiHomeTests(unittest.TestCase):
                     (2, 'Primary Hub', 1, X'02', 23, 2);
                 """
             )
+            connection.executescript("""
+                ALTER TABLE ZMKFACCESSORY ADD COLUMN ZSOFTWAREVERSION BLOB;
+                ALTER TABLE ZMKFACCESSORY ADD COLUMN ZFIRMWAREVERSION TEXT;
+                UPDATE ZMKFACCESSORY SET ZSOFTWAREVERSION = X'32372E32' WHERE Z_PK = 23;
+                UPDATE ZMKFACCESSORY SET ZFIRMWAREVERSION = '3.0' WHERE Z_PK = 30;
+                UPDATE ZMKFACCESSORY SET ZFIRMWAREVERSION = '1.2' WHERE Z_PK = 31;
+                INSERT INTO ZMKFSERVICE VALUES
+                    (50, NULL, 'Climate Channel', NULL, 31, X'000000820000100080000026BB765291'),
+                    (51, NULL, NULL, NULL, 31, X'123456780000100080000026BB765291');
+            """)
             connection.close()
 
             layout = load_home_layout(database, {"inventory": {"zones": []}}, 2)
@@ -155,6 +206,14 @@ class MultiHomeTests(unittest.TestCase):
         self.assertEqual([scene["name"] for scene in scenes], ["Primary Scene"])
         self.assertEqual([hub["name"] for hub in infrastructure["homeHubs"]], ["Primary Accessory"])
         self.assertEqual([bridge["name"] for bridge in infrastructure["bridges"]], ["Primary Bridge"])
+        self.assertEqual(infrastructure["homeHubs"][0]["softwareVersion"], "27.2")
+        self.assertTrue(infrastructure["homeHubs"][0]["primary"])
+        self.assertEqual(infrastructure["bridges"][0]["firmwareVersion"], "3.0")
+        self.assertEqual(infrastructure["bridges"][0]["accessories"][0]["firmwareVersion"], "1.2")
+        child = next(a for a in layout["roomsWithoutZone"][0]["accessories"] if a["id"] == 31)
+        self.assertIn("Humidity", child["capabilities"])
+        self.assertTrue(any(s["originalName"] == "Climate Channel" for s in child["services"]))
+        self.assertTrue(any(s["name"].startswith("Unclassified service") for s in child["services"]))
 
 
 if __name__ == "__main__":

@@ -95,6 +95,15 @@ retain search only because they normally contain a small number of records.
 ![Home Layout tab](../assets/tab-home-layout.svg)
 
 Shows the static HomeKit structure: zones, rooms, accessories, and services.
+Accessory and bridge cards include recorded software and firmware versions when
+available. Expand **Recorded version fields** to see the original values and
+their database fields. Displayable firmware takes precedence over raw firmware;
+software is kept separate. Placeholder firmware values such as `0.0.0` remain
+in the details rather than being presented as a useful firmware release.
+
+Versions are cached HomeKit metadata at capture time, not live device queries
+or checks against the manufacturer's latest release. Missing version columns
+in older database schemas produce empty fields rather than guessed versions.
 Unnamed HomeKit rooms are labeled with their internal room id rather than being
 merged into a generic unassigned bucket.
 
@@ -132,9 +141,11 @@ than a full UUID-level dependency graph.
 
 ![Hubs tab](../assets/tab-hubs.svg)
 
-Shows Apple resident devices known to HomeKit, including reachability and the
-inferred primary hub when the local database exposes that relationship. Hubs
-are operational infrastructure for HomeKit automations and remote access.
+Shows Apple resident devices known to HomeKit, including reachability, recorded
+software version, and the **Primary** marker. The marker reflects the preferred
+resident identifier stored by HomeKit; it is not a separate live check of which
+hub is currently executing automations. Software is displayed separately from
+raw firmware, which may retain an older value in the database.
 
 ### Bridges
 
@@ -142,6 +153,21 @@ are operational infrastructure for HomeKit automations and remote access.
 
 Shows bridge relationships found in HomeKit. Bridge mappings are derived from
 HomeKit's `ZHOSTACCESSORY` relationship.
+
+### Service Capability Mapping
+
+Capability badges are derived from service UUIDs, not accessory names or models.
+The catalog includes temperature, humidity, light level, air quality, battery,
+outlets, garage doors, locks, thermostats, heaters/coolers, humidifiers, air
+purifiers, irrigation, faucets, slats, filter maintenance, and media input
+sources alongside the existing security, lighting, and motion services.
+
+Unknown services retain their UUID and original names without receiving a
+guessed capability. Original service names remain available for search and
+automation participation matching even when the displayed label is a capability.
+UUID definitions are checked against
+[HAP-NodeJS service definitions](https://github.com/homebridge/HAP-NodeJS/blob/latest/src/lib/definitions/ServiceDefinitions.ts)
+and [Apple HomeKit service types](https://developer.apple.com/documentation/homekit/accessory-service-types).
 
 The Bridges view groups bridged accessories under the bridge that contributes
 them to HomeKit, which helps explain where accessories from Homebridge, Home
