@@ -1,13 +1,17 @@
 import subprocess
 import json
+import base64
 import sys
 import tempfile
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+from generate_inspector import load_manufacturer_logos, write_html  # noqa: E402
 
 
 class FilterMarkupParser(HTMLParser):
@@ -25,6 +29,35 @@ class FilterMarkupParser(HTMLParser):
 
 
 class GenerateInspectorTests(unittest.TestCase):
+    def test_manufacturer_logos_are_embedded_with_conservative_matching(self):
+        logos = load_manufacturer_logos({"Apple Inc.", "  sHeLlY  ", "Ring", "Eufy", "Philips", "", "Unknown"})
+        self.assertEqual(set(logos), {"Apple Inc.", "  sHeLlY  ", "Ring"})
+        for value in logos.values():
+            self.assertTrue(value.startswith("data:image/svg+xml;base64,"))
+            svg = ET.fromstring(base64.b64decode(value.split(",", 1)[1]))
+            self.assertEqual(svg.tag, "{http://www.w3.org/2000/svg}svg")
+
+    def test_logo_assets_are_complete_and_have_no_external_resources(self):
+        directory = ROOT / "assets" / "manufacturers"
+        catalog = json.loads((directory / "catalog.json").read_text())
+        for slug in catalog:
+            svg = ET.parse(directory / f"{slug}.svg")
+            for element in svg.iter():
+                self.assertNotIn(element.tag.rsplit("}", 1)[-1], {"script", "image", "use", "foreignObject"})
+                self.assertFalse(any(key.endswith("href") for key in element.attrib))
+
+    def test_logos_cover_bridges_and_hubs_without_database_access(self):
+        payload = {
+            "layout": {"zones": [{"rooms": ["Example Room"]}]},
+            "infrastructure": {
+                "homeHubs": [{"manufacturer": "Apple"}],
+                "bridges": [{"manufacturer": "Homebridge", "accessories": [{"manufacturer": "Ring"}]}],
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            write_html(payload, Path(tmp) / "report.html")
+        self.assertEqual(set(payload["manufacturerLogos"]), {"Apple", "Homebridge", "Ring"})
+
     def test_generated_html_contains_contextual_filter_groups(self):
         with tempfile.TemporaryDirectory() as tmp:
             subprocess.run(

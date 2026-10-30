@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.5.1 - 2026-10-30
+
+- Added embedded manufacturer logos to accessory, hub, and bridge card headers,
+  with text fallback for brands without an included logo and no external image
+  requests. Removed redundant manufacturer rows from these cards.
+
 ## 0.5.0 - 2026-10-30
 
 - Added recorded software and firmware versions to accessories, bridges, and
