@@ -95,13 +95,19 @@ retain search only because they normally contain a small number of records.
 ![Home Layout tab](../assets/tab-home-layout.svg)
 
 Shows the static HomeKit structure: zones, rooms, accessories, and services.
-Accessory, hub, and bridge headers display a locally bundled manufacturer logo
+Accessory, hub, and bridge headers display a transparent PNG manufacturer logo
+in the upper-right corner, adapting to light and dark themes without a tile.
+The locally bundled logo is shown
 where available. Otherwise the recorded manufacturer appears as text below the
 device name; absent manufacturers are omitted. Logos use exact manufacturer
 aliases rather than device-name or model inference. Hover text and accessible
 image labels retain the original manufacturer value. Assets are embedded in the
 HTML, so viewing a report does not contact external logo services. See the
 [logo catalog](../assets/manufacturers/README.md) for sources and matching rules.
+The Manufacturers view uses a larger transparent logo alongside each manufacturer group
+name, while accessory cards retain compact logos.
+
+![Manufacturer group heading with a larger logo using synthetic data](../assets/manufacturer-group-headers.jpg)
 
 ![Manufacturer logos and text fallback using synthetic accessories](../assets/manufacturer-card-headers.jpg)
 Accessory and bridge cards include recorded software and firmware versions when

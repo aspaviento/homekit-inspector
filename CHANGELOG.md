@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.5.2 - 2026-10-30
+
+- Added larger logos to manufacturer group headings, transparent PNG logos in
+  the upper-right corner of device cards, and Signify and Eufy manufacturer
+  aliases. Logos adapt to light and dark themes without a background tile.
+
 ## 0.5.1 - 2026-10-30
 
 - Added embedded manufacturer logos to accessory, hub, and bridge card headers,

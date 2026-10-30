@@ -113,11 +113,11 @@ def load_manufacturer_logos(manufacturers):
         slug = aliases.get(" ".join((manufacturer or "").casefold().split()))
         if not slug:
             continue
-        path = directory / f"{slug}.svg"
+        path = directory / f"{slug}.png"
         if not path.is_file():
             continue
         encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-        logos[manufacturer] = f"data:image/svg+xml;base64,{encoded}"
+        logos[manufacturer] = f"data:image/png;base64,{encoded}"
     return logos
 
 
@@ -927,12 +927,16 @@ h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: 0; }
 .title-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
 .brand { display: flex; align-items: center; gap: 11px; }
 .card details { overflow-wrap: anywhere; }
-.card-heading { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .card-heading h3, .card-heading h4 { margin: 0; overflow-wrap: anywhere; }
-.card-title { min-width: 0; }
-.manufacturer-logo { width: 36px; height: 36px; flex: 0 0 36px; display: grid; place-items: center; background: #fff; border: 1px solid #dce2ea; border-radius: 6px; }
-.manufacturer-logo img { width: 28px; height: 28px; object-fit: contain; }
+.card-title { min-width: 0; flex: 1; }
+.manufacturer-logo { order: 1; width: 60px; height: 28px; flex: 0 0 60px; display: grid; place-items: center; }
+.manufacturer-logo img { width: 60px; height: 28px; object-fit: contain; filter: brightness(0); }
 .manufacturer-text { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; overflow-wrap: anywhere; }
+.manufacturer-heading { align-items: center; justify-content: flex-start; min-height: 56px; gap: 14px; }
+.manufacturer-heading .manufacturer-logo { order: 0; width: 104px; height: 56px; flex-basis: 104px; }
+.manufacturer-heading .manufacturer-logo img { width: 88px; height: 40px; }
+@media (prefers-color-scheme: dark) { .manufacturer-logo img { filter: brightness(0) invert(1); } }
 .inspector-version { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
 .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; }
 .brand-mark svg { width: 38px; height: 38px; display: block; }
@@ -1007,6 +1011,7 @@ main.wrap.single { display: block; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
 .card { border: 1px solid var(--line); border-radius: 7px; padding: 14px; background: var(--surface-raised); min-width: 0; box-shadow: var(--shadow); }
 .card h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; color: var(--muted); letter-spacing: .04em; }
+.card .card-heading h3 { margin: 0; font-size: 16px; text-transform: none; color: var(--text); letter-spacing: 0; }
 .card h4 { margin: 0 0 7px; font-size: 15px; }
 .columns > .card { position: relative; overflow: hidden; padding-top: 16px; }
 .columns > .card::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--column-color); }
@@ -1422,14 +1427,14 @@ function bindBridgeLinks() {
     render();
   }));
 }
-function cardHeading(accessory, level = 4) {
+function cardHeading(accessory, level = 4, manufacturerGroup = false) {
   const manufacturer = accessory.manufacturer || '';
   const logo = Object.hasOwn(data.manufacturerLogos || {}, manufacturer) ? data.manufacturerLogos[manufacturer] : '';
   const tag = level === 3 ? 'h3' : 'h4';
-  return `<div class="card-heading">
+  return `<div class="card-heading${manufacturerGroup ? ' manufacturer-heading' : ''}">
     ${logo ? `<span class="manufacturer-logo" title="${esc(manufacturer)}"><img src="${esc(logo)}" alt="${esc(manufacturer)}" width="28" height="28"></span>` : ''}
     <div class="card-title"><${tag}>${esc(accessory.name)}</${tag}>
-      ${manufacturer && !logo ? `<span class="manufacturer-text">${esc(manufacturer)}</span>` : ''}
+      ${manufacturer && !logo && !manufacturerGroup ? `<span class="manufacturer-text">${esc(manufacturer)}</span>` : ''}
     </div>
   </div>`;
 }
@@ -1874,7 +1879,7 @@ function renderManufacturers() {
       const models = uniq(group.accessories.map(accessory => accessory.model));
       const rooms = uniq(group.accessories.map(accessory => accessory.room));
       return `<div class="section card">
-        <h3>${esc(group.name)}</h3>
+        ${cardHeading({name: group.name, manufacturer: group.name}, 3, true)}
         <div class="detail-top">
           <span class="badge">${group.accessories.length} accessories</span>
           <span class="badge">${models.length} models</span>
