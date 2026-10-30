@@ -46,11 +46,26 @@ class GenerateInspectorTests(unittest.TestCase):
         directory = ROOT / "assets" / "manufacturers"
         catalog = json.loads((directory / "catalog.json").read_text())
         for slug in catalog:
-            svg = ET.parse(directory / f"{slug}.svg")
-            for element in svg.iter():
-                self.assertNotIn(element.tag.rsplit("}", 1)[-1], {"script", "image", "use", "foreignObject"})
-                self.assertFalse(any(key.endswith("href") for key in element.attrib))
-            self.assertTrue((directory / f"{slug}.png").is_file())
+            source = directory / f"{slug}.svg"
+            if source.is_file():
+                svg = ET.parse(source)
+                for element in svg.iter():
+                    self.assertNotIn(element.tag.rsplit("}", 1)[-1], {"script", "image", "use", "foreignObject"})
+                    self.assertFalse(any(key.endswith("href") for key in element.attrib))
+            image = (directory / f"{slug}.png").read_bytes()
+            self.assertEqual(image[:8], b'\x89PNG\r\n\x1a\n')
+            self.assertEqual(image[25], 6)
+
+    def test_catalog_aliases_are_unambiguous_and_do_not_guess_unknown_brands(self):
+        catalog = json.loads((ROOT / 'assets/manufacturers/catalog.json').read_text())
+        aliases = {}
+        for slug, values in catalog.items():
+            for value in values:
+                normalized = ' '.join(value.casefold().split())
+                self.assertIn(aliases.get(normalized, slug), {slug})
+                aliases[normalized] = slug
+        names = {'Eve Systems', 'Aqara', 'Netatmo', 'Broadlink', 'haier', 'homebridge.io', 'Unknown Device', 'Default-Manufacturer'}
+        self.assertEqual(set(load_manufacturer_logos(names)), names - {'Unknown Device', 'Default-Manufacturer'})
 
     def test_logos_cover_bridges_and_hubs_without_database_access(self):
         payload = {

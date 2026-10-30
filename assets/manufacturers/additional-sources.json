@@ -1,0 +1,26 @@
+{
+  "repository": "https://github.com/home-assistant/brands",
+  "revision": "d74907a72e25f83d00db7bb111d0e92a256c1621",
+  "officialAssets": {
+    "vocolinc": "https://www.vocolinc.com/cdn/shop/files/VOCOlinc_LOGO_802C_bef8b39a-0b37-4188-bce1-86d25e205951.png?v=1684488440&width=600"
+  },
+  "simpleIconsAssets": ["irobot", "smart"],
+  "assets": {
+    "aqara": "core_brands/aqara/logo@2x.png",
+    "elgato": "core_brands/elgato/logo@2x.png",
+    "eve": "core_brands/eve/logo@2x.png",
+    "ledvance": "core_brands/ledvance/logo@2x.png",
+    "logitech": "core_brands/logitech/logo@2x.png",
+    "midea": "core_brands/midea/logo@2x.png",
+    "nuki": "core_brands/nuki/logo@2x.png",
+    "broadlink": "core_integrations/broadlink/logo@2x.png",
+    "liebherr": "core_integrations/liebherr/logo@2x.png",
+    "netatmo": "core_integrations/netatmo/logo@2x.png",
+    "openweather": "core_integrations/openweathermap/logo@2x.png",
+    "roborock": "core_integrations/roborock/logo@2x.png",
+    "tuya": "core_integrations/tuya/logo@2x.png",
+    "haier": "custom_integrations/haier/logo@2x.png",
+    "grohe": "custom_integrations/grohe_smarthome/icon@2x.png",
+    "remeha": "custom_integrations/remeha_home/logo@2x.png"
+  }
+}
