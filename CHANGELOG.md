@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 0.4.1 - 2026-10-30
+
+- Display the report generator version in the inspector header and metadata.
 - Added a security policy and private vulnerability reporting guidance, and
   aligned privacy documentation with the explicit plain-HTTP option.
 

@@ -13,6 +13,7 @@ import sqlite3
 from pathlib import Path
 
 import generate_homekit_reports as reports
+from inspector_version import VERSION
 from generate_condition_diagnostics import (
     build_characteristic_ref_lookup,
     condition_summary,
@@ -207,6 +208,7 @@ def build_payload(data, rows, theme_config=None, context_sources=None):
     }
     return {
         "metadata": {
+            "inspectorVersion": VERSION,
             "source": data.get("extractionSource"),
             "extractionDate": data.get("extractionDate"),
             "databasePath": data.get("databasePath"),
@@ -828,6 +830,7 @@ header { position: sticky; top: 0; z-index: 2; background: var(--header-bg); bor
 h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: 0; }
 .title-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
 .brand { display: flex; align-items: center; gap: 11px; }
+.inspector-version { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
 .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; }
 .brand-mark svg { width: 38px; height: 38px; display: block; }
 .home-context { text-align: right; min-width: 0; }
@@ -984,7 +987,7 @@ code { background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
             <path d="m49 49 6 6" stroke="#2563eb" stroke-width="4" stroke-linecap="round"/>
           </svg>
         </span>
-        <h1>HomeKit Inspector</h1>
+        <div><h1>HomeKit Inspector</h1><span class="inspector-version" id="inspectorVersion"></span></div>
       </div>
       <div class="home-context"><span>Home</span><strong class="home-name" id="homeName"></strong><time class="snapshot-date" id="snapshotDate"></time></div>
     </div>
@@ -1478,6 +1481,7 @@ function formatSnapshotDate(value) {
 }
 function init() {
   applyConfiguredThemes();
+  document.getElementById('inspectorVersion').textContent = `v${data.metadata.inspectorVersion}`;
   const homeName = data.metadata?.homeName || data.homeName || '';
   els.homeName.textContent = homeName || 'Not identified';
   const extractionDate = data.metadata?.extractionDate || data.extractionDate || '';

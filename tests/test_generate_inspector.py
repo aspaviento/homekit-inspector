@@ -1,4 +1,5 @@
 import subprocess
+import json
 import sys
 import tempfile
 import unittest
@@ -40,6 +41,10 @@ class GenerateInspectorTests(unittest.TestCase):
                 text=True,
             )
             html = (Path(tmp) / "homekit_inspector.html").read_text(encoding="utf-8")
+            data = json.loads((Path(tmp) / "homekit_inspector_data.json").read_text())
+            version_source = (ROOT / "scripts" / "inspector_version.py").read_text()
+            self.assertIn(f'VERSION = "{data["metadata"]["inspectorVersion"]}"', version_source)
+            self.assertIn('id="inspectorVersion"', html)
 
         parser = FilterMarkupParser()
         parser.feed(html)

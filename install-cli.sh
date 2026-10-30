@@ -65,6 +65,7 @@ scripts/generate_inspector.py
 scripts/homed_extract.py
 scripts/homekit_inspector_cli.py
 scripts/install_refresh_config.py
+scripts/inspector_version.py
 "
 for relative_path in $REQUIRED_FILES; do
     if [ ! -f "$SOURCE_ROOT/$relative_path" ]; then
@@ -82,7 +83,7 @@ trap cleanup EXIT HUP INT TERM
 
 install -d -m 0755 "$STAGING_DIR/bin" "$STAGING_DIR/scripts"
 install -m 0755 "$SOURCE_ROOT/bin/homekit-inspector" "$STAGING_DIR/bin/homekit-inspector"
-for script in generate_condition_diagnostics.py generate_homekit_reports.py generate_inspector.py homed_extract.py homekit_inspector_cli.py install_refresh_config.py; do
+for script in generate_condition_diagnostics.py generate_homekit_reports.py generate_inspector.py homed_extract.py homekit_inspector_cli.py install_refresh_config.py inspector_version.py; do
     install -m 0755 "$SOURCE_ROOT/scripts/$script" "$STAGING_DIR/scripts/$script"
 done
 
