@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.0 - 2026-10-30
+
 - Added explicit plain-HTTP server and client configuration for trusted LAN or
   VPN deployments while retaining HTTPS as the default.
 - Prevented incomplete TLS handshakes from blocking all inspector requests.
