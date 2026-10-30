@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.5.3 - 2026-10-30
+
+- Expanded the shared manufacturer logo catalog to 31 brands, with documented
+  sources and explicit aliases. Unknown and virtual manufacturers retain their
+  text fallback; no brand-specific rendering logic is required.
+
 ## 0.5.2 - 2026-10-30
 
 - Added larger logos to manufacturer group headings, transparent PNG logos in

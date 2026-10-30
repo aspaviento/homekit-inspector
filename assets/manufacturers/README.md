@@ -39,3 +39,22 @@ The Eufy wordmark was extracted from the inline `logoSvg` in the header of the
 [official Eufy website](https://www.eufy.com/) on 2026-10-30. Its SVG
 `currentColor` fills are normalized to black before rasterization. It is an
 Anker/Eufy trademark and is not part of the Simple Icons collection.
+
+## Additional Manufacturers
+
+The catalog is shared across all manufacturers; no brand has a dedicated
+rendering or matching path. Additional transparent wordmarks are sourced from
+[Home Assistant Brands](https://github.com/home-assistant/brands), with source
+paths and a pinned revision in `additional-sources.json`. This includes Aqara,
+Eve, Elgato, LEDVANCE, Logitech, Midea, Nuki, Broadlink, Liebherr, Netatmo,
+OpenWeather, Roborock, Tuya, Haier, GROHE, and Remeha. The source images remain
+their respective owners' trademarks and are separate from the Simple Icons
+license. The VOCOlinc source URL is its official website. The iRobot and smart
+SVGs come from the same Simple Icons revision documented above.
+
+Wordmarks are trimmed and resized to fit a maximum 320 by 160 pixels. White
+knockout areas are made transparent so that the existing monochrome theme
+filter preserves lettering within filled logos. Original manufacturers and
+aliases remain separate entries: a recorded company name is not automatically
+mapped to a different product brand. New aliases are added explicitly; unknown
+or virtual manufacturer values keep their text fallback.
