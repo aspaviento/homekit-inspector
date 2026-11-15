@@ -129,6 +129,89 @@ parts needed for readable inspection using Python standard library modules:
 - archived `NSDateComponents` for calendar triggers;
 - predicate archive decoding for HomeKit/Eve conditions.
 
+### Scalar OPACK Values
+
+Some `ZTARGETVALUE` and `ZEVENTVALUE` blobs are scalar OPACK objects from Apple's
+private CoreUtils serialization format rather than complete property lists.
+The scalar decoder implements booleans, compact integers, explicitly sized
+little-endian integers, and float32/float64 values. It leaves unsupported
+markers and truncated values unchanged. This subset follows the reverse
+engineering documented by the [pyatv project](https://pyatv.dev/documentation/protocols/#opack).
+
+The `01` and `02` markers encode boolean true and false. Compact integer
+markers encode the value with an offset: `08` represents 0 and `09` represents
+1. Decoding precedes characteristic interpretation, so an encoded false can
+describe power off, a closed contact, or absent occupancy. Numeric button
+events are interpreted as press types, not physical button numbers. Physical
+button labels come from the service's factory metadata.
+
+Raw event and action records remain in the report's expandable recorded-data
+section. Unsupported encodings remain flagged for review. No decoding rule
+depends on accessory names, room names, or a household-specific manufacturer
+exception.
+
+### Hue Buttons and Rule Structure
+
+Recognized Hue stateless programmable switch services are selected using
+manufacturer, model, and service metadata. Assignments are resolved using
+service primary keys within the selected home, not automation titles or
+configured accessory names. Both enabled and disabled rules count as recorded
+assignments. Missing identifiers in older exports make the assignment status
+unavailable; re-extraction supplies the relationships.
+
+Buttons without HomeKit assignments display "Behavior configured in Hue".
+The inspector does not query the Hue Bridge and cannot enumerate or
+verify its native behaviors. This label does not attribute orphan HomeKit
+rules to the Hue app or imply that Hue executes them. HomeKit capability and
+third-party configuration support are documented in the [Hue release notes](https://www.philips-hue.com/es-cl/support/release-notes/ios)
+(version 2.16.0).
+
+Rule structure is reported independently of its enabled flag: no associated
+events, unresolved trigger, and empty rule are different states. Calendar,
+presence, location, and significant-time events do not require an accessory.
+
+### Rule Viability and Start/End Events
+
+Extraction and relationship checks use one read transaction for a consistent
+SQLite snapshot. The recorded `ZENDEVENT` flag separates start and end events;
+`ZDURATION` is preserved in seconds. An absent role field in an older export
+remains unknown rather than being inferred from the event type. Duration end
+events do not start rules or increase the count of compound start triggers.
+See Apple's documentation for [endEvents](https://developer.apple.com/documentation/homekit/hmeventtrigger/endevents):
+end events restore the previously active state, which need not always mean off.
+
+The rule audit evaluates every recorded initial event. A positive orphan result
+requires an event trigger with explicit event roles and proof that all start
+events are impossible, or verified absence of any initial events in a completely
+read supported graph. The extractor's `eventGraphComplete` flag distinguishes
+that evidence from an empty list in an older or incomplete export. Supported
+per-event proofs are missing
+device/service/characteristic relationships on device events and impossible
+Gregorian date components when the calendar identifier is explicitly archived.
+A recurring February 29 remains possible; a past date alone is not proof.
+
+Scoped lookup failures are checked against the database before being called
+missing. Objects outside the selected home and unsupported schemas are reported
+as unresolved or out of scope. Characteristic instance identifiers are resolved
+within their service; a coincidentally matching primary key in another service
+must not resolve the reference.
+
+No orphan result is inferred from a rule name, an enabled flag, incomplete
+start-event data, or a broken THEN target. Unresolved predicate references are listed under
+IF and require review; arbitrary logical impossibility of predicates is not
+solved by this audit. The orphan filter is a subset of Needs review. Each
+positive result includes evidence, and reference issues identify WHEN, IF, THEN,
+or END independently.
+
+### Playback Destinations
+
+Playback accessory relationships are discovered from CoreData junction-table
+and column names rather than fixed numeric prefixes. Destinations outside the
+selected home are excluded. Multiple physical speakers can belong to one
+destination displayed by Apple Home; the report preserves individual stored
+relationships without guessing speaker groups. Counts are action records,
+not unique accessories or user-interface tiles.
+
 When a value cannot be decoded with enough confidence, the inspector marks it as
 unresolved instead of guessing.
 

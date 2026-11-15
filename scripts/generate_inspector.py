@@ -15,6 +15,7 @@ from pathlib import Path
 
 import generate_homekit_reports as reports
 from inspector_version import VERSION
+from rule_analysis import analyze_rule, start_events, condition_reference_issues
 from generate_condition_diagnostics import (
     build_characteristic_ref_lookup,
     condition_summary,
@@ -178,6 +179,7 @@ def build_rows(data, db_path, private_overrides=None, homebridge_security=None):
             continue
         row["conditionRules"] = [rule["text"] for rule in summary["rules"]]
         row["conditionConfidence"] = summary["confidence"]
+        row["conditionReferenceIssues"] = condition_reference_issues(summary["decoded"])
     reports.apply_security_event_filters(rows, data)
     for row in rows:
         reports.recompute_filtered_when_rules(row)
@@ -189,16 +191,37 @@ def build_rows(data, db_path, private_overrides=None, homebridge_security=None):
 
 def row_to_rule(row, room_lookup):
     devices = reports.uniq([*(row.get("eventDevices") or []), *(row.get("actionDevices") or [])])
-    rooms = reports.uniq(room_lookup.get(device) for device in devices)
-    translated_then = [translate_rule(rule) for rule in row.get("thenRules") or []]
-    has_unresolved = any(
-        "hex:" in rule or "special/toggle value" in rule
-        for rule in translated_then
+    events = row.get("events") or []
+    visible_events = [e for e in start_events(events) if reports.event_target(e) in (row.get("eventDevices") or [])]
+    # Explicit relationship rooms take precedence over the legacy name lookup,
+    # which can be ambiguous for identically named speakers or lights.
+    resolved_names = {reports.event_target(e) for e in visible_events if e.get("room")}
+    resolved_names.update(
+        reports.action_target(target)
+        for action in row.get("actions") or []
+        for target in (action.get("targets") or [action]) if target.get("room")
     )
+    rooms = reports.uniq([
+        *(room_lookup.get(device) for device in devices if device not in resolved_names),
+        *(row.get("actionRooms") or []),
+        *(event.get("room") for event in visible_events),
+    ])
+    translated_then = [translate_rule(rule) for rule in row.get("thenRules") or []]
+    translated_when = [translate_rule(rule) for rule in row.get("whenRules") or []]
+    has_unresolved = any("hex:" in rule for rule in translated_then + translated_when) or any(
+        isinstance(decoded, str) and decoded.startswith("hex:")
+        for item, key in [
+            *((e, "eventValueRaw") for e in row.get("events") or []),
+            *((a, "targetValueRaw") for a in row.get("actions") or []),
+        ]
+        for decoded in [reports.decode_homekit_scalar(reports.raw_value(item, key), item.get("format") or "")]
+    )
+    analysis = analyze_rule(row)
     confidence_parts = []
     if row.get("conditionConfidence"):
         confidence_parts.append(row["conditionConfidence"])
-    if row.get("notes"):
+    needs_review = bool(row.get("notes")) or analysis["needsStructureReview"] or row.get("conditionConfidence") == "low"
+    if needs_review:
         confidence_parts.append("review")
     if has_unresolved:
         confidence_parts.append("unresolved-values")
@@ -210,11 +233,23 @@ def row_to_rule(row, room_lookup):
         "name": row["name"],
         "enabled": row["enabled"],
         "triggerType": row.get("triggerType") or "",
-        "when": [translate_rule(rule) for rule in row.get("whenRules") or []],
+        "when": translated_when,
         "if": [translate_rule(rule) for rule in row.get("conditionRules") or []],
         "then": translated_then,
+        "end": [translate_rule(rule) for rule in row.get("endRules") or []],
         "events": row.get("eventDevices") or [],
+        "eventAccessoryIds": reports.uniq(e.get("accessoryId") for e in visible_events),
+        "eventLabels": reports.uniq(reports.event_display_target(e) for e in visible_events),
         "actions": row.get("actionDevices") or [],
+        "actionAccessoryIds": reports.uniq(
+            target.get("accessoryId")
+            for action in row.get("actions") or []
+            for target in (action.get("targets") or [action])
+        ),
+        "actionLabels": reports.uniq(
+            label for action in row.get("actions") or []
+            for label in reports.action_display_targets(action)
+        ),
         "rooms": rooms,
         "notes": [translate_rule(note) for note in row.get("notes") or []],
         "confidence": confidence,
@@ -222,6 +257,9 @@ def row_to_rule(row, room_lookup):
         "hasConditions": bool(row.get("hasConditions")),
         "hasCompoundTrigger": has_compound_trigger,
         "hasUnresolvedValues": has_unresolved,
+        **analysis,
+        "needsReview": needs_review,
+        "rawDetails": {"eventGraphComplete": row.get("eventGraphComplete", False), "events": events, "actions": row.get("actions") or []},
         "rawCounts": {
             "events": row.get("eventCount") or 0,
             "actionSets": row.get("actionSetCount") or 0,
@@ -246,6 +284,8 @@ def build_payload(data, rows, theme_config=None, context_sources=None):
         "inactive": sum(1 for rule in rules if not rule["enabled"]),
         "withConditions": sum(1 for rule in rules if rule["hasConditions"]),
         "unresolved": sum(1 for rule in rules if rule["hasUnresolvedValues"]),
+        "orphaned": sum(1 for rule in rules if rule["isOrphaned"]),
+        "needsReview": sum(1 for rule in rules if rule["needsReview"]),
     }
     return {
         "metadata": {
@@ -272,6 +312,60 @@ def build_payload(data, rows, theme_config=None, context_sources=None):
         "themeConfig": theme_config or default_theme_config(),
         "rules": rules,
     }
+
+
+def attach_hue_button_assignments(layout, rows):
+    """Describe current Hue button services, without guessing orphan rule owners.
+
+    Assignment matching uses service primary keys scoped to the selected home.
+    Factory service metadata supplies button numbers, never automation names.
+    """
+    import re
+
+    assignments = {}
+    unresolved_assignments = False
+    for row in rows:
+        for event in row.get("events") or []:
+            if event.get("characteristic") != "Programmable Switch Event":
+                continue
+            if event.get("serviceId") is None:
+                unresolved_assignments = True
+                continue
+            assignments.setdefault(event["serviceId"], []).append({
+                "ruleId": row["index"], "name": row["name"], "enabled": row["enabled"],
+                "press": reports.event_rule(event).rsplit(" = ", 1)[-1],
+                "eventRole": event.get("eventRole", "unknown"),
+                "actions": [translate_rule(line) for line in (
+                    row.get("endRules") if event.get("eventRole") == "end" else row.get("thenRules")
+                ) or []],
+            })
+    rooms = [room for zone in layout.get("zones") or [] for room in zone.get("rooms") or []]
+    rooms += layout.get("roomsWithoutZone") or []
+    for room in rooms:
+        for accessory in room.get("accessories") or []:
+            manufacturer = " ".join((accessory.get("manufacturer") or "").casefold().split())
+            if manufacturer not in {"signify netherlands b.v.", "philips", "philips lighting", "signify"}:
+                continue
+            buttons = []
+            for service in accessory.get("services") or []:
+                if service.get("serviceType", "").lower() != "00000089-0000-1000-8000-0026bb765291":
+                    continue
+                provided = service.get("providedName") or ""
+                if "hue" not in provided.casefold() and not re.match(r"^(RWL|RDM|ROM)", accessory.get("model") or "", re.I):
+                    continue
+                match = re.search(r"\bbutton\s+(\d+)\b", provided, re.I)
+                linked = assignments.get(service["id"], [])
+                buttons.append({
+                    "serviceId": service["id"], "number": int(match.group(1)) if match else None,
+                    "label": f"Button {match.group(1)}" if match else provided or "Button",
+                    "assignments": linked,
+                    "behavior": "HomeKit assignment" if linked else (
+                        "Assignment status unavailable; re-extract" if unresolved_assignments
+                        else "Behavior configured in Hue"
+                    ),
+                })
+            if buttons:
+                accessory["hueButtons"] = sorted(buttons, key=lambda b: (b["number"] is None, b["number"] or 0, b["serviceId"]))
 
 
 def default_theme_config():
@@ -771,6 +865,7 @@ def load_scenes(db_path, home_id=None):
             "accessoryName": accessory_name,
             "room": room or "",
             "serviceName": service_configured_name or service_name or service_provided_name or accessory_provided_name,
+            "serviceConfiguredName": service_configured_name or "",
         }
         if state is not None:
             action["state"] = state
@@ -1144,7 +1239,7 @@ code { background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
       <select id="theme"><option value="">All themes</option></select>
       <select id="room"><option value="">All rooms</option></select>
       <select id="automationType"><option value="">Both types</option><option value="Advanced">Advanced</option><option value="Standard">Standard</option></select>
-      <select id="confidence"><option value="">All confidence</option><option value="unresolved">Unresolved values</option><option value="review">Needs review</option><option value="auto">Auto</option></select>
+      <select id="confidence"><option value="">All confidence</option><option value="unresolved">Unresolved values</option><option value="review">Needs review</option><option value="orphaned">Orphaned rules</option><option value="auto">Auto</option></select>
       <button class="secondary filter-clear" type="button" data-clear-filters="automations">Clear filters</button>
     </div>
     <div class="filters" id="sceneFilters" data-filter-tab="scenes">
@@ -1229,7 +1324,7 @@ function applyConfiguredThemes() {
   for (const rule of data.rules) rule.displayTheme = configuredTheme(rule);
 }
 function textOf(rule) {
-  return [rule.name, rule.displayTheme, ...rule.when, ...rule.if, ...rule.then, ...rule.events, ...rule.actions, ...rule.rooms, ...rule.notes].join(' ').toLowerCase();
+  return [rule.name, rule.displayTheme, ...rule.when, ...rule.if, ...rule.then, ...(rule.end || []), ...rule.events, ...rule.actions, ...(rule.actionLabels || []), ...rule.rooms, ...rule.notes, rule.structureStatus || ''].join(' ').toLowerCase();
 }
 function normalizeName(value) {
   return String(value ?? '').trim().toLowerCase().replace(/\\s+/g, ' ');
@@ -1268,6 +1363,7 @@ function accessoryText(accessory) {
     accessory.isMatter ? 'Matter' : '',
     ...(accessory.capabilities || []),
     ...(accessory.services || []).flatMap(service => [service.name, service.configuredName, service.originalName, service.providedName]),
+    ...(accessory.hueButtons || []).flatMap(button => [button.label, button.behavior]),
   ].join(' ').toLowerCase();
 }
 function accessoryMatchesFilters(accessory, {room = '', capability = '', manufacturer = ''} = {}) {
@@ -1324,6 +1420,7 @@ function textHasAlias(text, alias) {
 }
 function buildAutomationUsage() {
   const aliasIndex = buildAliasIndex();
+  const accessoriesById = new Map(allAccessories().map(accessory => [String(accessory.id), accessory]));
   const usages = new Map();
   const addExact = (name, rule, role, via = '') => {
     const match = aliasIndex.get(normalizeName(name));
@@ -1331,8 +1428,18 @@ function buildAutomationUsage() {
     addUsage(usages, match.accessories[0], rule, role, via || match.alias);
   };
   for (const rule of data.rules || []) {
-    for (const name of rule.events || []) addExact(name, rule, 'WHEN');
-    for (const name of rule.actions || []) addExact(name, rule, 'THEN');
+    for (const [role, ids, names] of [
+      ['WHEN', rule.eventAccessoryIds, rule.events], ['THEN', rule.actionAccessoryIds, rule.actions],
+    ]) {
+      if (ids?.length) {
+        for (const id of ids) {
+          const accessory = accessoriesById.get(String(id));
+          if (accessory) addUsage(usages, accessory, rule, role);
+        }
+      } else {
+        for (const name of names || []) addExact(name, rule, role);
+      }
+    }
     for (const line of rule.if || []) {
       for (const [normalized, match] of aliasIndex) {
         if (!textHasAlias(line, normalized)) continue;
@@ -1453,8 +1560,18 @@ function accessoryCard(accessory) {
       ${versionBlock(accessory)}
       ${accessory.services?.length ? `<p class="empty">${esc(accessory.services.map(service => service.name).slice(0, 8).join(', '))}${accessory.services.length > 8 ? '...' : ''}</p>` : ''}
       ${automationUsageBlock(accessory)}
+      ${hueButtonBlock(accessory)}
     </div>
   `;
+}
+function hueButtonBlock(accessory) {
+  if (!accessory.hueButtons?.length) return '';
+  return `<details class="usage-list"><summary>Hue buttons</summary>
+    <ul>${accessory.hueButtons.map(button => `<li><b>${esc(button.label)}</b>: ${esc(button.behavior)}
+      ${button.assignments.length ? `<ul>${button.assignments.map(assignment => `<li>${assignment.eventRole === 'end' ? 'End / restore · ' : ''}${esc(assignment.press)} · ${esc(assignment.name)}${assignment.enabled ? '' : ' (disabled)'}${listBlock(assignment.actions)}</li>`).join('')}</ul>` : ''}
+    </li>`).join('')}</ul>
+    <p class="empty">HomeKit assignments are matched by service identifier. Hue-side actions are not read by this inspector.</p>
+  </details>`;
 }
 function versionBlock(accessory, isHub = false) {
   const software = accessory.softwareVersion || '';
@@ -1666,7 +1783,8 @@ function filteredRules() {
     if (els.room.value && !rule.rooms.includes(els.room.value)) return false;
     if (els.automationType.value && rule.automationType !== els.automationType.value) return false;
     if (els.confidence.value === 'unresolved' && !rule.hasUnresolvedValues) return false;
-    if (els.confidence.value === 'review' && !rule.confidence.includes('review')) return false;
+    if (els.confidence.value === 'review' && !(rule.needsReview ?? rule.confidence.includes('review'))) return false;
+    if (els.confidence.value === 'orphaned' && !rule.isOrphaned) return false;
     if (els.confidence.value === 'auto' && rule.confidence !== 'auto') return false;
     if (quickFilter === 'conditions' && !rule.hasConditions) return false;
     return true;
@@ -1720,22 +1838,28 @@ function automationDetailHtml(rule) {
       <span class="badge ${rule.enabled ? 'active' : 'inactive'}">${rule.enabled ? 'Active' : 'Inactive'}</span>
       <span class="badge ${rule.automationType === 'Advanced' ? 'advanced' : 'standard'}" title="${esc(automationTypeTitle(rule))}">${esc(rule.automationType)}</span>
       <span class="badge">${esc(rule.displayTheme)}</span>
+      ${rule.structureStatus ? `<span class="badge warn">${esc(rule.structureStatus)}</span>` : ''}
       <span class="badge ${rule.hasUnresolvedValues ? 'warn' : ''}">${esc(rule.confidence)}</span>
-      <span class="badge">${rule.rawCounts.events} events</span>
-      <span class="badge">${rule.rawCounts.actions} actions</span>
+      <span class="badge">${rule.startEventCount ?? rule.rawCounts.events} start event${(rule.startEventCount ?? rule.rawCounts.events) === 1 ? '' : 's'}</span>
+      ${rule.endEventCount ? `<span class="badge">${rule.endEventCount} end event${rule.endEventCount === 1 ? '' : 's'}</span>` : ''}
+      <span class="badge" title="Stored action records; a record can address several accessories">${rule.rawCounts.actions} action records</span>
     </div>
     <div class="columns">
       <div class="card"><h3>When</h3>${listBlock(rule.when)}</div>
       <div class="card"><h3>If</h3>${listBlock(rule.if)}</div>
       <div class="card"><h3>Then</h3>${listBlock(rule.then)}</div>
     </div>
+    ${rule.end?.length ? `<div class="section card"><h3>End / restore</h3>${listBlock(rule.end)}</div>` : ''}
+    ${rule.orphanEvidence?.length ? `<div class="section card"><h3>Orphan evidence</h3>${listBlock(rule.orphanEvidence.map(item => item.startEvent == null ? item.reason : `Start event ${item.startEvent}: ${item.reason}`))}</div>` : ''}
+    ${rule.referenceIssues?.length ? `<div class="section card"><h3>Reference issues</h3>${listBlock(rule.referenceIssues.map(item => `${item.part}: ${item.kind} ${item.id ?? '(unrecorded)'} — ${item.status}`))}</div>` : ''}
     <div class="section card"><h3>Devices and Rooms</h3>
-      <p><b>Events:</b> ${esc(rule.events.join(', ') || 'None')}</p>
-      <p><b>Actions:</b> ${esc(rule.actions.join(', ') || 'None')}</p>
+      <p><b>Trigger devices:</b> ${esc((rule.eventLabels || rule.events).join(', ') || 'None')}</p>
+      <p><b>Action targets:</b> ${esc((rule.actionLabels || rule.actions).join(', ') || 'None')}</p>
       <p><b>Rooms:</b> ${esc(rule.rooms.join(', ') || 'None')}</p>
     </div>
     ${sceneBlock(rule)}
     <div class="section card"><h3>Notes</h3>${listBlock(rule.notes)}</div>
+    ${rule.rawDetails ? `<details class="section card"><summary>Recorded events and actions</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(rule.rawDetails, null, 2))}</pre></details>` : ''}
     <div class="footer-note">Generated locally from HomeKit export. Keep this file private until names and topology are reviewed.</div>
   `;
 }
@@ -1847,7 +1971,7 @@ function renderLayout() {
       </div>
     `).join('') || '<div class="card empty">No matching rooms or accessories.</div>'}
     ${roomsWithoutZone.length ? `<div class="section card"><h3>Rooms Without Zone</h3><div class="grid">${roomsWithoutZone.map(room => roomCard(room)).join('')}</div></div>` : ''}
-    <div class="footer-note">Automation markers are decoded references matched by unique accessory or service name. Ambiguous duplicate names are not marked.</div>
+    <div class="footer-note">Automation markers use accessory identifiers where recorded, with unique-name matching for older exports and scene references. Ambiguous names are not matched.</div>
   `;
   bindAutomationUsageLinks();
   bindBridgeLinks();
@@ -2017,6 +2141,7 @@ function roomCard(room) {
     ${(room.accessories || []).length ? `<ul>${room.accessories.map(accessory => `
       <li><b>${esc(accessory.name)}</b>${accessory.manufacturer || accessory.model ? ` <span class="badge">${esc([accessory.manufacturer, accessory.model].filter(Boolean).join(' '))}</span>` : ''} ${matterBadge(accessory)} ${capabilityBadges(accessory)} ${bridgeBadge(accessory)}
       ${automationUsageBlock(accessory)}
+      ${hueButtonBlock(accessory)}
       ${accessory.services?.length ? `<br><span class="empty">${esc(accessory.services.map(service => service.name).slice(0, 8).join(', '))}${accessory.services.length > 8 ? '...' : ''}</span>` : ''}</li>
     `).join('')}</ul>` : '<div class="empty">No accessories identified</div>'}
   </div>`;
@@ -2297,6 +2422,7 @@ def main():
     payload = build_payload(data, rows, load_theme_config(args.theme_config), context_sources)
     home_id = data.get("homeId")
     payload["layout"] = load_home_layout(db_path, data, home_id)
+    attach_hue_button_assignments(payload["layout"], rows)
     payload["infrastructure"] = load_infrastructure(db_path, home_id)
     scenes = load_scenes(db_path, home_id)
     attach_scene_references(payload, scenes)

@@ -16,6 +16,8 @@ The project provides:
   column numbers where possible.
 - Decoding for HomeKit events, actions, scenes, date components, media actions,
   Natural Lighting targets, and Eve/HomeKit predicate conditions.
+- Scalar Apple CoreUtils OPACK decoding, contextual event descriptions, and
+  Hue button assignment summaries based on HomeKit service relationships.
 - A standalone HTML inspector with views for home layout, hubs, bridges,
   context sources, manufacturers, automations, scenes, and theme assignment.
 - An optional LAN server for serving a generated inspector report and accepting
@@ -207,6 +209,61 @@ python3 scripts/generate_inspector.py \
   --private-overrides examples/private-overrides.example.json \
   --output-dir local-output/example
 ```
+
+Automation WHEN and THEN labels prefer configured service names, then descriptive
+service names, and include rooms where available. Original accessory names
+remain available for matching and search. Playback destinations are extracted
+from accessory relationships when the database schema exposes them; unnamed
+destinations remain explicitly unnamed. Re-extract the database to populate
+playback destinations in older exports. Action record counts describe stored
+records, not accessory counts: one playback record can address several speakers,
+including individual members that Home displays together.
+
+Version 0.9.0 adds scalar decoding for Apple CoreUtils OPACK values, including
+boolean encodings (`01`/`02`), compact integers (`08` represents 0, `09`
+represents 1), and supported floating-point values. The characteristic gives
+the decoded value its meaning: false can mean off, closed, or no occupancy.
+An encoded boolean is not a vendor-specific toggle instruction. Unknown or
+unsupported payloads remain available as raw values for review. This is a
+scalar decoder, not a complete OPACK implementation.
+
+Recognized Hue remotes show a **Hue buttons** section in Home Layout and on their accessory cards.
+HomeKit assignments are matched by service identifier and show their rule,
+press type, and actions. A button without a HomeKit assignment is labelled
+**Behavior configured in Hue**. This describes the Hue configuration
+context; the inspector does not read the Hue Bridge's behavior configuration
+or verify that a Hue-side action exists. A disabled HomeKit rule remains an
+assignment and is labelled disabled. Re-extract older exports to populate the
+relationship identifiers needed for this view.
+
+Rules without associated events and rules with unresolved triggers receive
+separate structural labels. Empty rules are described as possibly residual,
+without recommending deletion or inferring who created them. These labels do
+not change the recorded enabled state. Scheduled and other non-device triggers
+do not need a trigger accessory.
+
+Version 0.9.1 separates **start events** from **end events**. Solar offsets are
+rendered in WHEN, and durations recorded as end events appear under
+**End / restore**. HomeKit uses these events to restore the previous state;
+the inspector does not assume that every timed restoration is a turn-off.
+Re-extract older exports to obtain event roles and duration fields.
+
+The confidence filter includes **Orphaned rules**, also included in **Needs
+review**. An orphan classification requires evidence that every recorded start
+event is impossible in the captured configuration, such as a verified missing
+trigger object. Version 0.9.2 also recognizes verified absence of all start
+events in a completely read, supported event-trigger graph. A valid alternative
+start event keeps the rule from being classified as orphaned. Complete graph
+evidence is required for both kinds of proof. Missing events
+in an incomplete export, names of empty rules, unknown schemas, and devices outside
+the selected home are not sufficient proof. Broken action
+targets can prevent individual actions without preventing the rule from starting.
+Recorded reference issues and orphan evidence appear in the rule detail.
+
+The audit is conservative, not a complete solver for arbitrary predicates.
+Unsupported or unresolved condition references require review without proving
+that the entire rule cannot execute. Names, enabled flags, and lack of recent
+execution history do not determine whether a rule is orphaned.
 
 ## Optional Context Sources
 

@@ -1,3 +1,3 @@
 """Product version shared by report generation and installed CLI code."""
 
-VERSION = "0.5.3"
+VERSION = "0.9.2"

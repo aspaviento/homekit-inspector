@@ -3,8 +3,7 @@
 ## Supported versions
 
 Security fixes target the latest published release of HomeKit Inspector.
-At publication of this policy, that release is **v0.5.3**. Older releases do
-not receive separate security backports. Reports affecting development code
+Older releases do not receive separate security backports. Reports affecting development code
 are welcome; reproduce against the latest release where practical.
 
 This is a community-maintained project. Response and remediation times depend
