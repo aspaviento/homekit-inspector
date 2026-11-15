@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import re
 import struct
 from collections import Counter, defaultdict
 from pathlib import Path
+from rule_analysis import start_events, end_events
 
 from generate_condition_diagnostics import (
     build_characteristic_ref_lookup,
@@ -82,30 +84,6 @@ ZONE_NAME_ALIASES = {}
 
 MANUAL_RULE_OVERRIDES = {}
 
-SECURITY_TARGET_VALUES = {
-    "hex:08": "Home",
-    "hex:3500000000": "Home",
-    "hex:09": "Away",
-    "hex:36000000000000f03f": "Away",
-    "hex:0a": "Night",
-    "hex:360000000000000040": "Night",
-}
-
-BOOL_TRUE_VALUES = {"hex:01", "hex:09", "hex:36000000000000f03f", True, 1, 1.0}
-BOOL_FALSE_VALUES = {"hex:00", "hex:08", "hex:3500000000", False, 0, 0.0}
-
-CONTACT_OPEN_VALUES = {"hex:09", "hex:36000000000000f03f", 1, 1.0}
-CONTACT_CLOSED_VALUES = {"hex:01", "hex:08", "hex:3500000000", 0, 0.0}
-PROGRAMMABLE_SWITCH_EVENTS = {
-    "hex:08": "Single Press",
-    "hex:09": "Double Press",
-    "hex:0a": "Long Press",
-    0: "Single Press",
-    1: "Double Press",
-    2: "Long Press",
-}
-
-
 def uniq(values):
     seen = set()
     out = []
@@ -141,9 +119,34 @@ def action_target(action):
     return action.get("accessoryName") or action.get("serviceName")
 
 
+def action_display_target(action):
+    # Keep identity/alias matching separate from the user-facing service label.
+    service = action.get("serviceName") or ""
+    generic_services = {"lightbulb", "light bulb", "light", "outlet", "switch", "battery",
+                        "accessory information", "fan", "thermostat", "speaker", "television",
+                        "humidifier-dehumidifier", "humidifier", "dehumidifier", "security system",
+                        "window covering", "temperature sensor", "humidity sensor", "occupancy sensor",
+                        "motion sensor", "contact sensor", "stateless programmable switch"}
+    # Older exports do not distinguish service name sources. Use their
+    # descriptive names, but never replace an accessory with a generic label.
+    descriptive_service = service if (
+        service.strip().casefold() not in generic_services
+        and service != (action.get("serviceProvidedName") or action.get("providedName"))
+    ) else ""
+    name = (action.get("serviceConfiguredName") or descriptive_service
+            or action_target(action) or action.get("providedName"))
+    room = action.get("room")
+    return f"{name} ({room})" if name and room else name
+
+
+def action_display_targets(action):
+    targets = action.get("targets") if action.get("actionType") in {"naturalLighting", "mediaPlayback"} else [action]
+    return uniq(action_display_target(target) for target in targets or [])
+
+
 def action_targets(action):
     targets = []
-    if action.get("actionType") == "naturalLighting":
+    if action.get("actionType") in {"naturalLighting", "mediaPlayback"}:
         for target in action.get("targets") or []:
             name = target.get("accessoryName") or target.get("serviceName") or target.get("providedName")
             if name:
@@ -157,7 +160,7 @@ def action_targets(action):
 
 def action_rooms(action):
     rooms = []
-    if action.get("actionType") == "naturalLighting":
+    if action.get("actionType") in {"naturalLighting", "mediaPlayback"}:
         rooms.extend(target.get("room") for target in action.get("targets") or [])
     else:
         rooms.append(action.get("room"))
@@ -165,9 +168,22 @@ def action_rooms(action):
 
 
 def event_target(event):
+    return event.get("accessory") or event.get("service")
+
+
+def event_display_target(event):
+    target = action_display_target({
+        "accessoryName": event.get("accessory"), "serviceName": event.get("service"),
+        "serviceConfiguredName": event.get("serviceConfiguredName"),
+        "serviceProvidedName": event.get("serviceProvidedName"), "room": event.get("room"),
+    })
     if event.get("characteristic") == "Programmable Switch Event":
-        return event.get("serviceProvidedName") or event.get("service") or event.get("accessory")
-    return event.get("service") or event.get("accessory")
+        # The factory-provided service name identifies the physical button,
+        # even when all four services have the same configured display name.
+        match = re.search(r"\bbutton\s+(\d+)\b", event.get("serviceProvidedName") or "", re.I)
+        if match:
+            target = f"{target} / Button {match.group(1)}"
+    return target
 
 
 def raw_value(item, key):
@@ -175,12 +191,11 @@ def raw_value(item, key):
 
 
 def bool_text(value):
-    if value in BOOL_TRUE_VALUES:
+    value = decode_homekit_scalar(value, "bool")
+    if value is True or value == 1:
         return "true"
-    if value in BOOL_FALSE_VALUES:
+    if value is False or value == 0:
         return "false"
-    if value == "hex:02":
-        return "special/toggle value 2"
     return str(value) if value is not None else "valor desconocido"
 
 
@@ -194,28 +209,35 @@ def decode_homekit_scalar(value, fmt=""):
     if not raw:
         return value
 
-    # homed stores some target values as the compact binary-plist object body:
-    # 0x08/0x09 for bools, 0x30 + byte for small ints, and 0x35/0x36
-    # followed by little-endian float/double values for numeric targets.
-    if fmt == "bool":
-        if value in BOOL_TRUE_VALUES:
-            return True
-        if value in BOOL_FALSE_VALUES:
-            return False
+    # Scalar OPACK objects used by homed, not raw characteristic bytes:
+    # https://pyatv.dev/documentation/protocols/#opack
+    # 01/02 are booleans; 08..2f encode integers 0..39. In particular,
+    # 02 is false, not a numeric toggle command or a vendor-specific value.
+    if len(raw) == 1:
+        if raw[0] in (1, 2):
+            return raw[0] == 1
+        if raw[0] == 7:
+            return -1
+        if 8 <= raw[0] <= 0x2f:
+            return raw[0] - 8
         return value
-    if len(raw) == 1 and fmt in {"int", "uint8", "uint16", "uint32", "uint64", "float"}:
-        return raw[0]
-    if len(raw) == 2 and raw[0] == 0x30:
-        return raw[1]
+    if raw[0] in (0x30, 0x31, 0x32, 0x33):
+        size = 1 << (raw[0] - 0x30)
+        if len(raw) == 1 + size:
+            return int.from_bytes(raw[1:], "little")
     if len(raw) == 5 and raw[0] == 0x35:
         try:
             number = struct.unpack("<f", raw[1:])[0]
+            if not math.isfinite(number):
+                return value
             return int(number) if number.is_integer() else round(number, 4)
         except struct.error:
             return value
     if len(raw) == 9 and raw[0] == 0x36:
         try:
             number = struct.unpack("<d", raw[1:])[0]
+            if not math.isfinite(number):
+                return value
             return int(number) if number.is_integer() else round(number, 4)
         except struct.error:
             return value
@@ -232,35 +254,80 @@ def action_value(action):
     return decode_homekit_scalar(raw_value(action, "targetValueRaw"), action.get("format") or "")
 
 
+def duration_text(seconds):
+    if not isinstance(seconds, (int, float)) or isinstance(seconds, bool) or not math.isfinite(seconds) or seconds < 0:
+        return None
+    if seconds and seconds % 3600 == 0:
+        amount, unit = seconds / 3600, "hour"
+    elif seconds and seconds % 60 == 0:
+        amount, unit = seconds / 60, "minute"
+    else:
+        amount, unit = seconds, "second"
+    return f"{amount:g} {unit}{'' if amount == 1 else 's'}"
+
+
+def end_event_rule(event):
+    if event.get("eventType") == "duration":
+        duration = duration_text(event.get("durationSeconds"))
+        return f"Restore previous state after {duration}" if duration else "End duration not decoded"
+    rule = event_rule(event)
+    return f"Restore previous state when: {rule}" if rule else "End event not decoded"
+
+
 def event_rule(event):
-    target = event_target(event)
+    target = event_display_target(event)
     characteristic = event.get("characteristic") or ""
     service = event.get("service") or ""
-    value = raw_value(event, "eventValueRaw")
+    value = decode_homekit_scalar(raw_value(event, "eventValueRaw"), event.get("format") or "")
+    if event.get("eventType") == "significantTime":
+        name = event.get("significantEvent")
+        if name not in {"sunrise", "sunset"}:
+            return "Solar event not decoded"
+        offset = event.get("offsetSeconds", 0)
+        if not isinstance(offset, (int, float)) or not math.isfinite(offset):
+            return f"At {name} (offset not decoded)"
+        if not offset:
+            return f"At {name}"
+        return f"{duration_text(abs(offset))} {'after' if offset > 0 else 'before'} {name}"
+    if event.get("eventType") == "presence":
+        return "Presence event"
+    if event.get("eventType") == "location":
+        return "Location event"
     if event.get("eventType") == "calendar" and event.get("dateComponents"):
         components = event["dateComponents"]
         hour = components.get("hour")
         minute = components.get("minute")
         if hour is not None and minute is not None:
-            return f"cada dia a las {int(hour):02d}:{int(minute):02d}"
+            qualifiers = [f"{key} {components[key]}" for key in ("year", "month", "day", "weekday") if key in components]
+            suffix = f" ({', '.join(qualifiers)})" if qualifiers else ""
+            return f"At {int(hour):02d}:{int(minute):02d}{suffix}"
         return "evento de calendario"
     if characteristic == "Motion Detected":
-        return f"{target} detecta movimiento"
+        if value in (0, 1):
+            return f"{target} detects motion" if value else f"{target} stops detecting motion"
+        return f"{target} / Motion Detected changes"
     if characteristic == "Occupancy Detected":
-        return f"{target} detecta ocupacion"
+        if value in (0, 1):
+            return f"{target} detects occupancy" if value else f"{target} stops detecting occupancy"
+        return f"{target} / Occupancy Detected changes"
     if characteristic == "Contact Sensor State":
-        if value in CONTACT_OPEN_VALUES:
+        if value == 1:
             return f"{target} se abre"
-        if value in CONTACT_CLOSED_VALUES:
+        if value == 0:
             return f"{target} se cierra"
         return f"{target} cambia estado de contacto"
     if characteristic == "Current Door State":
+        state = {0: "is open", 1: "is closed", 2: "is opening", 3: "is closing", 4: "is stopped"}.get(value) if isinstance(value, (int, float)) else None
+        if state:
+            return f"{target} {state}"
         return f"{target} cambia estado de puerta"
     if characteristic == "Programmable Switch Event":
-        event_name = PROGRAMMABLE_SWITCH_EVENTS.get(value)
+        event_name = {0: "Single Press", 1: "Double Press", 2: "Long Press"}.get(value) if isinstance(value, (int, float)) else None
         if event_name:
             return f"{target} / Programmable Switch Event = {event_name}"
         return f"{target} / Programmable Switch Event cambia"
+    if characteristic in {"Power State", "Active"} and value in (0, 1):
+        return f"{target} turns on" if value else f"{target} turns off"
     if characteristic == "Power State":
         return f"{target} Power State == {bool_text(value)}"
     if characteristic:
@@ -269,7 +336,7 @@ def event_rule(event):
 
 
 def action_rule(action, action_set_name=""):
-    target = action_target(action)
+    target = action_display_target(action)
     characteristic = action.get("characteristic") or ""
     value = action_value(action)
     if action.get("actionType") == "mediaPlayback":
@@ -277,14 +344,12 @@ def action_rule(action, action_set_name=""):
         if state == 1:
             return "reproducir audio/media"
         if state == 2:
-            return "pausar/detener reproduccion multimedia"
+            label = "pausar/detener reproduccion multimedia"
+            destinations = action_display_targets(action)
+            return label + (": " + ", ".join(destinations) if destinations else "")
         return f"accion multimedia state={state}" if state is not None else "accion multimedia"
     if action.get("actionType") == "naturalLighting":
-        targets = [
-            target.get("accessoryName") or target.get("serviceName") or target.get("providedName")
-            for target in action.get("targets") or []
-        ]
-        targets = uniq(targets)
+        targets = action_display_targets(action)
         if targets:
             return "Natural Lighting action: " + ", ".join(targets)
         return "accion de Natural Lighting"
@@ -295,13 +360,15 @@ def action_rule(action, action_set_name=""):
     if not target:
         return ""
     if characteristic == "Security System Target State":
-        raw = raw_value(action, "targetValueRaw")
-        state = SECURITY_TARGET_VALUES.get(raw, str(value))
+        state = {0: "Home", 1: "Away", 2: "Night", 3: "Disarmed"}.get(value, str(value)) if isinstance(value, (int, float)) else str(value)
         return f"{target} / Security System Target State = {state}"
-    if characteristic == "Power State":
+    if characteristic in {"Power State", "Active"}:
         if action_set_name and target and target.startswith("Zona "):
             return f"activar {target}"
-        return f"{target} / Power State = {bool_text(raw_value(action, 'targetValueRaw'))}"
+        state = bool_text(raw_value(action, "targetValueRaw"))
+        if state in {"true", "false"}:
+            return f"Turn on: {target}" if state == "true" else f"Turn off: {target}"
+        return f"{target} / {characteristic} = {state}"
     if characteristic == "Target Position":
         return f"{target} / Target Position = {value_text(value)}"
     if characteristic == "Brightness":
@@ -311,22 +378,36 @@ def action_rule(action, action_set_name=""):
     return target or ""
 
 
-def automatic_when_rules(events):
-    return uniq(event_rule(event) for event in events)
+def automatic_when_rules(events, recurrence_mask=None, execute_once=False):
+    rules = []
+    for event in start_events(events):
+        text = event_rule(event)
+        dated = any(key in (event.get("dateComponents") or {}) for key in ("year", "month", "day", "weekday"))
+        if text and event.get("eventType") in {"calendar", "significantTime"}:
+            if execute_once:
+                text = "Once · " + text
+            elif recurrence_mask == 127 and not dated:
+                text = "Daily · " + text
+        if text:
+            rules.append(text)
+    return uniq(rules)
 
 
 def recompute_filtered_when_rules(row):
     allowed = set(row.get("eventDevices") or [])
     non_device_rules = automatic_when_rules(
-        event
-        for event in row["events"]
-        if event.get("eventType") in {"calendar", "presence", "significantTime", "location"}
+        (event for event in start_events(row["events"])
+         if event.get("eventType") in {"calendar", "presence", "significantTime", "location"}),
+        recurrence_mask=row.get("recurrenceDaysMask"),
+        execute_once=row.get("executeOnce", False),
     )
     if not allowed:
         row["whenRules"] = non_device_rules
         return
     row["whenRules"] = uniq(non_device_rules + automatic_when_rules(
-        event for event in row["events"] if event_target(event) in allowed
+        (event for event in start_events(row["events"]) if event_target(event) in allowed),
+        row.get("recurrenceDaysMask"),
+        row.get("executeOnce", False),
     ))
 
 
@@ -411,7 +492,7 @@ def summarize(auto, index):
     action_sets = auto.get("actionSets") or []
     actions = [action for aset in action_sets for action in (aset.get("actions") or [])]
 
-    raw_event_devices = uniq(event_target(event) for event in events)
+    raw_event_devices = uniq(event_target(event) for event in start_events(events))
     event_devices = filter_event_devices(name, raw_event_devices)
     action_devices = uniq(target for action in actions for target in action_targets(action))
 
@@ -424,6 +505,9 @@ def summarize(auto, index):
         "enabled": bool(auto.get("enabled")),
         "triggerType": auto.get("triggerType") or "",
         "events": events,
+        "recurrenceDaysMask": auto.get("recurrenceDaysMask"),
+        "executeOnce": bool(auto.get("executeOnce")),
+        "eventGraphComplete": auto.get("eventGraphComplete") is True,
         "actionSets": action_sets,
         "actions": actions,
         "actionRooms": uniq(room for action in actions for room in action_rooms(action)),
@@ -439,7 +523,8 @@ def summarize(auto, index):
         "notes": notes,
         "conditionRules": [],
         "conditionConfidence": "",
-        "whenRules": automatic_when_rules(events),
+        "whenRules": automatic_when_rules(events, auto.get("recurrenceDaysMask"), auto.get("executeOnce", False)),
+        "endRules": [end_event_rule(event) for event in end_events(events)],
         "thenRules": automatic_then_rules(action_sets),
     }
 
@@ -522,7 +607,9 @@ def primary_theme(themes):
 def review_notes(name, auto, event_devices, action_devices, raw_event_devices=None):
     raw_event_devices = raw_event_devices or event_devices
     notes = []
-    if not event_devices:
+    non_device_events = {"calendar", "presence", "significantTime", "location"}
+    events = start_events(auto.get("events") or [])
+    if not event_devices and (not events or any(e.get("eventType") not in non_device_events for e in events)):
         notes.append("sin dispositivo disparador exportado por homed_extract")
     if not action_devices and any((aset.get("actions") or []) == [] for aset in auto.get("actionSets") or []):
         notes.append("sin acciones exportadas en uno o mas action sets")
@@ -735,10 +822,12 @@ def build_device_room_lookup(data, rows):
             lookup.setdefault(name, room)
     for row in rows:
         for action in row["actions"]:
-            name = action.get("accessoryName") or action.get("serviceName")
-            room = action.get("room")
-            if name and room and name not in lookup:
-                lookup[name] = room
+            targets = action.get("targets") or [action]
+            for target in targets:
+                name = action_target(target)
+                room = target.get("room")
+                if name and room and name not in lookup:
+                    lookup[name] = room
     return lookup
 
 

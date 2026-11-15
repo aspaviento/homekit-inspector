@@ -197,6 +197,36 @@ def decode_date_components(blob: bytes | None) -> dict | None:
     return None
 
 
+def decode_calendar_identifier(blob):
+    """Read an explicitly archived calendar; never infer the user's calendar."""
+    if not blob:
+        return None
+    try:
+        objects = plistlib.loads(blob).get("$objects", [])
+        for components in objects:
+            if not isinstance(components, dict):
+                continue
+            cls = components.get("$class")
+            if not isinstance(cls, plistlib.UID) or objects[cls.data].get("$classname") != "NSDateComponents":
+                continue
+            item = components.get("NS.calendar")
+            if isinstance(item, plistlib.UID):
+                item = objects[item.data]
+            if not isinstance(item, dict):
+                continue
+            cls = item.get("$class")
+            if not isinstance(cls, plistlib.UID) or objects[cls.data].get("$classname") != "NSCalendar":
+                continue
+            identifier = item.get("NS.identifier")
+            if isinstance(identifier, plistlib.UID):
+                identifier = objects[identifier.data]
+            if isinstance(identifier, str):
+                return identifier.casefold()
+    except (ValueError, TypeError, AttributeError, IndexError, plistlib.InvalidFileException):
+        pass
+    return None
+
+
 def decode_uuid_set(blob: bytes | None) -> list[str]:
     """Decode an archived NSSet of NSUUID values."""
     if not blob:
@@ -580,8 +610,10 @@ def _build_service_lookup(
         acc_info = accessories.get(acc_pk, {})
         lookup[pk] = {
             "name": configured_name or name,
+            "configuredName": configured_name or "",
             "providedName": provided_name,
             "accessory": acc_info.get("name") or acc_info.get("providedName", ""),
+            "accessoryId": acc_pk,
             "modelId": str(uuid_mod.UUID(bytes=model_id)) if model_id else "",
             "room": acc_info.get("room", ""),
         }
@@ -616,6 +648,8 @@ def _build_characteristic_lookup(
             "format": fmt,
             "instanceId": instance_id,
             "serviceId": svc_pk,
+            "accessoryId": svc_info.get("accessoryId"),
+            "room": svc_info.get("room", ""),
         }
         if svc_pk is not None and instance_id is not None:
             by_service_instance[(svc_pk, instance_id)] = lookup[pk]
@@ -626,6 +660,54 @@ def _build_characteristic_lookup(
 # Event extraction
 # ---------------------------------------------------------------------------
 
+def _reference_check(cur, kind, reference, lookup, table):
+    """Distinguish a missing object from a scoped/unsupported lookup."""
+    result = {"kind": kind, "id": reference, "status": "present"}
+    if reference in lookup:
+        return result
+    try:
+        exists = cur.execute(f"SELECT 1 FROM {table} WHERE Z_PK = ?", (reference,)).fetchone()
+        result["status"] = "outside-selected-home" if exists else "missing"
+    except sqlite3.Error:
+        result["status"] = "unresolved"
+    return result
+
+
+def _service_reference_checks(cur, reference, services):
+    check = _reference_check(cur, "service", reference, services, "ZMKFSERVICE")
+    checks = [check]
+    if check["status"] == "outside-selected-home":
+        try:
+            parent = cur.execute("SELECT ZACCESSORY FROM ZMKFSERVICE WHERE Z_PK = ?", (reference,)).fetchone()
+            if parent and parent[0] is not None:
+                accessory = _reference_check(cur, "accessory", parent[0], {}, "ZMKFACCESSORY")
+                if accessory["status"] == "missing":
+                    checks.append(accessory)
+        except sqlite3.Error:
+            pass
+    return checks
+
+
+def _resolve_characteristic(cur, reference, service, characteristics, by_instance):
+    candidate = by_instance.get((service, reference), {}) if service else {}
+    direct = characteristics.get(reference, {})
+    if not candidate and direct and (not service or direct.get("serviceId") == service):
+        candidate = direct
+    check = {"kind": "characteristic", "id": reference, "serviceId": service, "status": "present"}
+    if not candidate:
+        check["status"] = "unresolved"
+        if service:
+            try:
+                exists = cur.execute(
+                    "SELECT 1 FROM ZMKFCHARACTERISTIC WHERE ZSERVICE = ? "
+                    "AND (ZINSTANCEID = ? OR Z_PK = ?)", (service, reference, reference),
+                ).fetchone()
+                check["status"] = "outside-selected-home" if exists else "missing"
+            except sqlite3.Error:
+                pass
+    return candidate, check
+
+
 def _extract_events(
     cur: sqlite3.Cursor,
     trigger_pk: int,
@@ -635,18 +717,26 @@ def _extract_events(
     event_ent_names: dict[int, str],
 ) -> list[dict]:
     """Return a list of decoded event dicts for a given trigger Z_PK."""
+    columns = {row[1] for row in cur.execute("PRAGMA table_info(ZMKFEVENT)")}
+    end_column = "ZENDEVENT" if "ZENDEVENT" in columns else "NULL"
+    id_column = "Z_PK" if "Z_PK" in columns else "NULL"
     cur.execute(
         "SELECT e.Z_ENT, e.ZSIGNIFICANTEVENT, e.ZPRESENCETYPE, e.ZOFFSETSECONDS, "
         "e.ZDURATION, e.ZEVENTVALUE, e.ZCHARACTERISTICID, e.ZSERVICE, "
-        "e.ZFIREDATECOMPONENTS "
+        f"e.ZFIREDATECOMPONENTS, {end_column}, {id_column} "
         "FROM ZMKFEVENT e WHERE e.ZTRIGGER = ?",
         (trigger_pk,),
     )
     events: list[dict] = []
     for ev in cur.fetchall():
         evt: dict = {
-            "eventType": event_ent_names.get(ev[0], EVENT_ENT_NAMES.get(ev[0], f"ent_{ev[0]}"))
+            "eventType": event_ent_names.get(ev[0], EVENT_ENT_NAMES.get(ev[0], f"ent_{ev[0]}")),
+            "eventRole": "end" if ev[9] == 1 else "start" if ev[9] == 0 else "unknown",
         }
+        if ev[10] is not None:
+            evt["id"] = ev[10]
+        if ev[4] is not None:
+            evt["durationSeconds"] = ev[4]
         if ev[1]:
             evt["significantEvent"] = ev[1]
         if ev[2] is not None:
@@ -661,20 +751,31 @@ def _extract_events(
         date_components = decode_date_components(ev[8])
         if date_components:
             evt["dateComponents"] = date_components
+        calendar_id = decode_calendar_identifier(ev[8])
+        if calendar_id:
+            evt["calendarIdentifier"] = calendar_id
         if ev[6]:
-            ci = (
-                char_by_service_instance.get((ev[7], ev[6]), {})
-                if ev[7]
-                else {}
+            evt["characteristicReference"] = ev[6]
+            ci, check = _resolve_characteristic(
+                cur, ev[6], ev[7], char_info, char_by_service_instance,
             )
-            if not ci:
-                ci = char_info.get(ev[6], {})
+            evt.setdefault("referenceChecks", []).append(check)
             evt["characteristic"] = ci.get("description") or ci.get("type", "")
             evt["accessory"] = ci.get("accessory", "")
             evt["service"] = ci.get("service", "")
             evt["format"] = ci.get("format", "")
+            evt["characteristicType"] = ci.get("type", "")
+            evt["serviceId"] = ci.get("serviceId")
+            evt["accessoryId"] = ci.get("accessoryId")
+            evt["room"] = ci.get("room", "")
         if ev[7]:
+            evt["serviceReference"] = ev[7]
+            evt.setdefault("referenceChecks", []).extend(_service_reference_checks(cur, ev[7], svc_names))
             si = svc_names.get(ev[7], {})
+            evt["serviceId"] = ev[7]
+            evt["accessoryId"] = si.get("accessoryId")
+            evt["room"] = si.get("room", "")
+            evt["serviceConfiguredName"] = si.get("configuredName", "")
             if not evt.get("accessory"):
                 evt["accessory"] = si.get("accessory", "")
             if si.get("providedName"):
@@ -686,6 +787,35 @@ def _extract_events(
 # ---------------------------------------------------------------------------
 # Action extraction
 # ---------------------------------------------------------------------------
+
+def _media_targets(cur, action_pk, accessories, reference_checks=None):
+    """Resolve playback destinations through CoreData's versioned join table."""
+    tables = cur.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+    for (table,) in tables:
+        if not table.upper().startswith("Z_") or "ACTIONMEDIAPLAYBACK" not in table.upper():
+            continue
+        columns = [r[1] for r in cur.execute(f"PRAGMA table_info({_quote_identifier(table)})")]
+        action_cols = [c for c in columns if "ACTIONMEDIAPLAYBACK" in c.upper()]
+        accessory_cols = [c for c in columns if "ACCESSORIES" in c.upper()]
+        if len(action_cols) != 1 or len(accessory_cols) != 1:
+            continue
+        rows = cur.execute(
+            f"SELECT {_quote_identifier(accessory_cols[0])} FROM {_quote_identifier(table)} "
+            f"WHERE {_quote_identifier(action_cols[0])} = ? ORDER BY 1", (action_pk,),
+        ).fetchall()
+        if reference_checks is not None:
+            reference_checks.extend(
+                _reference_check(cur, "accessory", pk, accessories, "ZMKFACCESSORY")
+                for (pk,) in rows
+            )
+        return [
+            {"accessoryId": pk, "accessoryName": accessories[pk].get("name")
+             or accessories[pk].get("providedName") or "Unnamed audio accessory",
+             "room": accessories[pk].get("room", "")}
+            for (pk,) in rows if pk in accessories
+        ]
+    return []
+
 
 def _extract_actions(
     cur: sqlite3.Cursor,
@@ -712,8 +842,8 @@ def _extract_actions(
         (action_set_pk,),
     )
     services_by_model_id = {
-        info.get("modelId"): info
-        for info in svc_names.values()
+        info.get("modelId"): {**info, "serviceId": pk}
+        for pk, info in svc_names.items()
         if info.get("modelId")
     }
     actions: list[dict] = []
@@ -732,6 +862,10 @@ def _extract_actions(
     ) in cur.fetchall():
         atype = action_ent_names.get(act_ent, ACTION_ENT_NAMES.get(act_ent, f"ent_{act_ent}"))
         ad: dict = {"actionType": atype}
+        if act_acc:
+            ad["accessoryId"] = act_acc
+        if act_svc:
+            ad["serviceId"] = act_svc
 
         if atype == "shortcut" and act_data:
             try:
@@ -745,6 +879,12 @@ def _extract_actions(
                     )
 
         elif atype == "mediaPlayback":
+            checks = []
+            targets = _media_targets(cur, act_pk, acc_names, checks)
+            if checks:
+                ad["referenceChecks"] = checks
+            if targets:
+                ad["targets"] = targets
             if act_state is not None:
                 ad["state"] = act_state
             if act_volume is not None:
@@ -759,12 +899,26 @@ def _extract_actions(
             if service_uuids:
                 ad["serviceUUIDs"] = service_uuids
                 targets = []
+                checks = []
                 for service_uuid in service_uuids:
                     service_info = services_by_model_id.get(service_uuid)
+                    check = {"kind": "service UUID", "id": service_uuid, "status": "present"}
+                    if not service_info:
+                        try:
+                            exists = cur.execute("SELECT 1 FROM ZMKFSERVICE WHERE ZMODELID = ?",
+                                                 (uuid_mod.UUID(service_uuid).bytes,)).fetchone()
+                            check["status"] = "outside-selected-home" if exists else "missing"
+                        except (ValueError, sqlite3.Error):
+                            check["status"] = "unresolved"
+                    checks.append(check)
                     if service_info:
                         targets.append(
                             {
                                 "serviceName": service_info.get("name", ""),
+                                "accessoryId": service_info.get("accessoryId"),
+                                "serviceId": service_info.get("serviceId"),
+                                "serviceConfiguredName": service_info.get("configuredName", ""),
+                                "serviceProvidedName": service_info.get("providedName", ""),
                                 "providedName": service_info.get("providedName", ""),
                                 "accessoryName": service_info.get("accessory", ""),
                                 "room": service_info.get("room", ""),
@@ -772,21 +926,25 @@ def _extract_actions(
                         )
                 if targets:
                     ad["targets"] = targets
+                ad["referenceChecks"] = checks
 
         elif atype == "characteristicWrite":
+            checks = []
+            if act_acc:
+                checks.append(_reference_check(cur, "accessory", act_acc, acc_names, "ZMKFACCESSORY"))
+            if act_svc:
+                checks.extend(_service_reference_checks(cur, act_svc, svc_names))
             if act_target:
                 try:
                     ad["targetValue"] = make_serializable(plistlib.loads(act_target))
                 except Exception:
                     ad["targetValueRaw"] = make_serializable(act_target)
             if act_char:
-                ci = (
-                    char_by_service_instance.get((act_svc, act_char), {})
-                    if act_svc
-                    else {}
+                ad["characteristicReference"] = act_char
+                ci, check = _resolve_characteristic(
+                    cur, act_char, act_svc, char_info, char_by_service_instance,
                 )
-                if not ci:
-                    ci = char_info.get(act_char, {})
+                checks.append(check)
                 ad["characteristic"] = ci.get("description") or ci.get("type", "")
                 ad["format"] = ci.get("format", "")
             if act_acc:
@@ -795,11 +953,15 @@ def _extract_actions(
                 ad["room"] = ai.get("room", "")
             if act_svc:
                 si = svc_names.get(act_svc, {})
+                ad["serviceConfiguredName"] = si.get("configuredName", "")
+                ad["serviceProvidedName"] = si.get("providedName", "")
                 ad["serviceName"] = (
                     si.get("name")
                     or si.get("providedName")
                     or si.get("accessory", "")
                 )
+            if checks:
+                ad["referenceChecks"] = checks
 
         actions.append(ad)
     return actions
@@ -943,6 +1105,9 @@ def extract(db_path: str, verbose: bool = False) -> dict:
             ) from exc
         raise
     cur = conn.cursor()
+    # Keep lookups and reference checks in one read snapshot. A concurrent
+    # HomeKit edit must not create a false dangling-reference diagnosis.
+    conn.execute("BEGIN")
 
     # -- Build lookup tables ------------------------------------------------
     if verbose:
@@ -956,6 +1121,11 @@ def extract(db_path: str, verbose: bool = False) -> dict:
     svc_names = _build_service_lookup(cur, acc_names)
     char_info, char_by_service_instance = _build_characteristic_lookup(cur, svc_names)
     entity_type_names = _build_entity_type_lookup(cur)
+    trigger_columns = {row[1] for row in cur.execute("PRAGMA table_info(ZMKFTRIGGER)")}
+    recurrence_masks = {}
+    event_columns = {row[1] for row in cur.execute("PRAGMA table_info(ZMKFEVENT)")}
+    if "ZRECURRENCEDAYS" in trigger_columns:
+        recurrence_masks = dict(cur.execute("SELECT Z_PK, ZRECURRENCEDAYS FROM ZMKFTRIGGER"))
 
     if verbose:
         print(
@@ -1017,6 +1187,8 @@ def extract(db_path: str, verbose: bool = False) -> dict:
             "enabled": bool(t_active),
             "triggerType": entity_type_names.get(t_ent, TRIGGER_ENT_NAMES.get(t_ent, f"type_{t_ent}")),
         }
+        if recurrence_masks.get(t_pk) is not None:
+            auto["recurrenceDaysMask"] = recurrence_masks[t_pk]
 
         if t_eval:
             try:
@@ -1040,6 +1212,14 @@ def extract(db_path: str, verbose: bool = False) -> dict:
         # Events (trigger conditions)
         auto["events"] = _extract_events(
             cur, t_pk, char_info, char_by_service_instance, svc_names, entity_type_names
+        )
+        # Only this reader can attest that a supported event graph was fully
+        # queried. Empty lists in older/foreign exports are not equivalent.
+        auto["eventGraphComplete"] = (
+            auto["triggerType"] == "event"
+            and "ZENDEVENT" in event_columns
+            and not t_sig
+            and all(event.get("eventRole") in {"start", "end"} for event in auto["events"])
         )
 
         # Action sets via the CoreData junction table.  CoreData embeds

@@ -178,7 +178,7 @@ the `Z_ENT` column determines which columns are populated.
 | `ZACTIONSET` | INTEGER | FK to `ZMKFACTIONSET.Z_PK` |
 | `ZTARGETSLEEPWAKESTATE` | INTEGER | Sleep/wake state target |
 | `ZACCESSORY` | INTEGER | FK to accessory -- **ALWAYS NULL for Z_ENT=36, see Gotcha 1** |
-| `ZCHARACTERISTICID` | INTEGER | FK to `ZMKFCHARACTERISTIC.Z_PK` |
+| `ZCHARACTERISTICID` | INTEGER | Characteristic reference: service-scoped instance ID or primary key, depending on the stored representation |
 | `ZACCESSORY1` | INTEGER | **Correct FK to `ZMKFACCESSORY.Z_PK` for CharacteristicWriteActions** |
 | `ZSERVICE` | INTEGER | FK to `ZMKFSERVICE.Z_PK` |
 | `ZSTATE` | INTEGER | Target state |
@@ -188,7 +188,7 @@ the `Z_ENT` column determines which columns are populated.
 | `ZVOLUME` | FLOAT | Volume level for media actions |
 | `ZMODELID` | VARCHAR | CoreData model UUID |
 | `ZLIGHTPROFILEUUID` | VARCHAR | Light profile reference |
-| `ZTARGETVALUE` | BLOB | Binary plist -- target value for CharacteristicWriteAction (Z_ENT=36) |
+| `ZTARGETVALUE` | BLOB | Target value for CharacteristicWriteAction; may be a scalar OPACK object or a property list |
 | `ZENCODEDPLAYBACKARCHIVE` | BLOB | Encoded media playback data |
 | `ZSERVICEUUIDS` | BLOB | Service UUID references |
 | `ZDATA` | BLOB | **For ShortcutAction (Z_ENT=40): binary plist with full workflow** |
@@ -201,9 +201,9 @@ the `Z_ENT` column determines which columns are populated.
 |--------|-----------------------|----------------------|
 | `ZACCESSORY` | always NULL | -- |
 | `ZACCESSORY1` | **valid FK** | -- |
-| `ZCHARACTERISTICID` | valid FK | -- |
+| `ZCHARACTERISTICID` | characteristic reference | -- |
 | `ZSERVICE` | valid FK | -- |
-| `ZTARGETVALUE` | binary plist | -- |
+| `ZTARGETVALUE` | scalar OPACK or property list | -- |
 | `ZDATA` | -- | **binary plist with WFWorkflowActions** |
 
 ---
@@ -217,22 +217,22 @@ Each trigger has one or more events that define when it fires.
 | `Z_PK` | INTEGER | Primary key |
 | `Z_ENT` | INTEGER | Event type (88, 90, 91, 92, 93, 96, or 97) |
 | `Z_OPT` | INTEGER | CoreData optimistic lock counter |
-| `ZENDEVENT` | INTEGER | FK to end event (for duration-based events) |
+| `ZENDEVENT` | INTEGER | Recorded event role flag: 0 for start, 1 for end; absent/unknown roles remain unresolved |
 | `ZTRIGGER` | INTEGER | FK to `ZMKFTRIGGER.Z_PK` |
-| `ZCHARACTERISTICID` | INTEGER | FK to `ZMKFCHARACTERISTIC.Z_PK` |
+| `ZCHARACTERISTICID` | INTEGER | Characteristic reference: service-scoped instance ID or primary key, depending on the stored representation |
 | `ZSERVICE` | INTEGER | FK to `ZMKFSERVICE.Z_PK` |
 | `ZUSER` | INTEGER | FK to user entity (for presence events) |
 | `ZACTIVATION` | INTEGER | Activation state |
 | `ZOFFSETSECONDS` | FLOAT | Offset in seconds from significant event |
 | `ZWRITERTIMESTAMP` | TIMESTAMP | Last modification time (CoreData epoch) |
-| `ZDURATION` | FLOAT | Duration value |
+| `ZDURATION` | FLOAT | Duration in seconds; preserved separately from initial trigger scheduling |
 | `ZPRESENCETYPE` | INTEGER | Presence type flag (arrive/leave) |
 | `ZSIGNIFICANTEVENT` | VARCHAR | `"sunrise"` or `"sunset"` |
 | `ZMODELID` | VARCHAR | CoreData model UUID |
 | `ZFIREDATECOMPONENTS` | BLOB | Date components for calendar events |
 | `ZMAX` | BLOB | Maximum range value (for range events) |
 | `ZMIN` | BLOB | Minimum range value (for range events) |
-| `ZEVENTVALUE` | BLOB | Binary plist -- the trigger comparison value |
+| `ZEVENTVALUE` | BLOB | Trigger comparison value; may be a scalar OPACK object or a property list |
 | `ZREGION` | BLOB | Geofence region data (for location events) |
 | `ZOFFSET` | BLOB | Structured offset data |
 | `ZMATTERPATH` | BLOB | Matter protocol path |

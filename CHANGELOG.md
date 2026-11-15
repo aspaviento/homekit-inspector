@@ -2,6 +2,65 @@
 
 ## Unreleased
 
+## 0.9.2 - 2026-11-15
+
+- Fixed orphan detection excluding event triggers with no start events. The
+  extractor now records whether the supported event graph was completely read;
+  verified absence of all initial events is evidence that the rule cannot start
+  automatically in the captured configuration, including empty rules and rules
+  that retain only end events.
+- Kept missing or incomplete legacy exports distinct from verified empty event
+  graphs. Preserved empty-rule and missing-start flags alongside orphan status
+  and added regression coverage for both complete and unknown graph states.
+
+## 0.9.1 - 2026-11-15
+
+- Separated start events from HomeKit end events and preserved duration fields.
+  Solar offsets and available daily recurrence metadata now appear in WHEN;
+  timed restoration appears in a separate End / restore section, following
+  HomeKit's previous-state restoration semantics.
+- Added a conservative rule viability audit and an Orphaned rules filter.
+  A rule is marked orphaned only when every recorded start event is proven
+  impossible in the captured configuration. Missing start events, empty rules,
+  unsupported encodings, and unresolved references retain separate review
+  states. A viable alternative prevents an orphan classification.
+- Checked recorded device event and action references against the database,
+  distinguishing deleted objects from objects outside the selected home or
+  unavailable schema information. Broken action targets and unresolved
+  condition references require review without declaring the rule orphaned.
+- Included orphaned rules and reference issues in Needs review, with visible
+  evidence in the automation detail. Preserved start/end counters alongside
+  raw event counts and kept end-button assignments separate from start actions.
+- Used a single read transaction for extraction and relationship validation,
+  avoiding inconsistent reference checks during concurrent HomeKit edits.
+- Added synthetic regression coverage for alternative triggers, impossible
+  Gregorian dates, dangling references, older exports, timed restoration,
+  filtering, and service-scoped characteristic identifiers.
+
+## 0.9.0 - 2026-11-15
+
+- Added scalar decoding for Apple's CoreUtils OPACK serialization in HomeKit
+  event and action values. Boolean and numeric encodings now produce readable
+  on/off, contact, occupancy, motion, button-press, brightness, and position
+  values without manufacturer-specific exceptions. Unsupported payloads retain
+  their raw representation for review.
+- Applied descriptive service names and room labels to both WHEN and THEN,
+  retaining original names, identifiers, and encoded values in recorded details.
+- Added per-button HomeKit assignment summaries for recognized Hue remotes,
+  matched by service identifiers. Buttons without HomeKit assignments show
+  "Behavior configured in Hue"; Hue-side actions are outside the
+  inspector's data source. Older exports with missing relationship identifiers
+  show an unavailable assignment status instead.
+- Distinguished empty rules, missing triggers, and unresolved triggers without
+  inferring their creator or declaring them obsolete. Calendar and other
+  non-device triggers no longer require a trigger accessory for confidence.
+- Extracted media playback accessory relationships through dynamically
+  discovered CoreData join columns. Playback summaries include available
+  destinations and rooms; action counts explicitly refer to stored records,
+  which need not match the number of accessories shown in Apple Home.
+- Added synthetic regression coverage for scalar encodings, room labels,
+  button relationships, playback destinations, and rule review states.
+
 ## 0.5.3 - 2026-10-30
 
 - Expanded the shared manufacturer logo catalog to 31 brands, with documented
